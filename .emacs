@@ -1,6 +1,4 @@
-(load "~/.emacs.d/hl-line+.el")
-
-(menu-bar-modfe -1)
+(menu-bar-mode -1)
 
 ;; LOAD MELPA
 
@@ -18,7 +16,7 @@
  ;; If there is more than one, they won't work right.
  '(package-selected-packages
    (quote
-    (yaml-mode helm-spotify minimap irony-eldoc flycheck-irony flymake-css flymake-php flymake-ruby flymake-rust flymake-sass flymake-yaml flymake-cppcheck flycheck flycheck-clang-analyzer flycheck-clang-tidy flycheck-clangcheck iedit emmet-mode yasnippet-snippets auto-complete-clang-async csharp-mode highlight-context-line rainbow-mode spotlight column-enforce-mode all-the-icons-dired neotree doom-themes realgud el-get multiple-cursors rainbow-delimiters linum-relative simpleclip ac-racer company-racer flycheck-rust rust-mode ac-php irony lsp-rust racer rust-playground 0blayout ac-c-headers ac-clang ac-emmet powerline dracula-theme company-shell company-c-headers company virtualenv jedi avk-emacs-themes))))
+    (js-doc nix-mode web-mode-edit-element dockerfile-mode indium php-mode xref-js2 rainbow-identifiers rainbow-blocks vue-mode company-tern exec-path-from-shell web-mode eslint-fix js2-refactor ac-js2 pug-mode yaml-mode helm-spotify minimap irony-eldoc flycheck-irony flymake-css flymake-php flymake-ruby flymake-rust flymake-sass flymake-yaml flymake-cppcheck flycheck flycheck-clang-analyzer flycheck-clang-tidy flycheck-clangcheck iedit emmet-mode yasnippet-snippets auto-complete-clang-async csharp-mode highlight-context-line rainbow-mode spotlight column-enforce-mode all-the-icons-dired neotree doom-themes realgud el-get multiple-cursors rainbow-delimiters linum-relative simpleclip ac-racer company-racer flycheck-rust rust-mode ac-php irony lsp-rust racer rust-playground 0blayout ac-c-headers ac-clang ac-emmet powerline dracula-theme company-shell company-c-headers company virtualenv jedi avk-emacs-themes))))
 (custom-set-faces
  ;; custom-set-faces was added by Custom.
  ;; If you edit it by hand, you could mess it up, so be careful.
@@ -28,7 +26,11 @@
 (when (not package-archive-contents)
     (package-refresh-contents))
 
+(add-to-list 'package-archives
+              '("melpa" . "http://melpa.milkbox.net/packages/") t)
+
 ;; END LOAD MELPA
+
 
 ;; LOAD ELGET
 (add-to-list 'load-path "~/.emacs.d/el-get/el-get")
@@ -44,6 +46,104 @@
 (el-get 'sync)
 
 ;; END LOAD ELGET
+
+
+;; WEB MODE EMACS
+  (use-package web-mode
+    :ensure t
+    :config
+    (add-to-list 'auto-mode-alist '("\\.html?\\'" . web-mode))
+    (add-to-list 'auto-mode-alist '("\\.ejs?\\'" . web-mode))
+    (setq web-mode-ac-sources-alist
+          '(("css" . (ac-source-css-property))
+            ("html" . (ac-source-words-in-buffer ac-source-abbrev))))
+
+(setq web-mode-enable-auto-closing t)
+(setq web-mode-enable-auto-quoting t))
+
+(add-hook 'web-mode-hook
+      '(lambda()
+        (setq indent-tabs-mode nil)))
+
+;; JS MODE
+(setq-default indent-tabs-mode nil)
+(require 'js2-mode)
+(add-to-list 'auto-mode-alist '("\\.js\\'" . js2-mode))
+(add-hook 'js2-mode-hook
+      '(lambda()
+        (setq indent-tabs-mode nil)))
+
+;; Better imenu
+(add-hook 'js2-mode-hook #'js2-imenu-extras-mode)
+(require 'js2-refactor)
+(require 'xref-js2)
+
+(add-hook 'js2-mode-hook #'js2-refactor-mode)
+(js2r-add-keybindings-with-prefix "C-c C-r")
+(define-key js2-mode-map (kbd "C-k") #'js2r-kill)
+
+;; js-mode (which js2 is based on) binds "M-." which conflicts with xref, so
+;; unbind it.
+(define-key js-mode-map (kbd "M-.") nil)
+
+(add-hook 'js2-mode-hook (lambda ()
+  (add-hook 'xref-backend-functions #'xref-js2-xref-backend nil t)))
+
+;; use web-mode for .jsx files
+(add-to-list 'auto-mode-alist '("\\.jsx$" . web-mode))
+
+;; http://www.flycheck.org/manual/latest/index.html
+(require 'flycheck)
+
+;; turn on flychecking globally
+(add-hook 'after-init-hook #'global-flycheck-mode)
+
+;; disable jshint since we prefer eslint checking
+(setq-default flycheck-disabled-checkers
+  (append flycheck-disabled-checkers
+    '(javascript-jshint)))
+
+;; use eslint with web-mode for jsx files
+(flycheck-add-mode 'javascript-eslint 'web-mode)
+
+;; customize flycheck temp file prefix
+(setq-default flycheck-temp-prefix ".flycheck")
+
+;; disable json-jsonlist checking for json files
+(setq-default flycheck-disabled-checkers
+  (append flycheck-disabled-checkers
+    '(json-jsonlist)))
+
+;; https://github.com/purcell/exec-path-from-shell
+;; only need exec-path-from-shell on OSX
+;; this hopefully sets up path and other vars better
+(when (memq window-system '(mac ns))
+  (exec-path-from-shell-initialize))
+
+;; use local eslint from node_modules before global
+;; http://emacs.stackexchange.com/questions/21205/flycheck-with-file-relative-eslint-executable
+(defun my/use-eslint-from-node-modules ()
+  (let* ((root (locate-dominating-file
+                (or (buffer-file-name) default-directory)
+                "node_modules"))
+         (eslint (and root
+                      (expand-file-name "node_modules/eslint/bin/eslint.js"
+                                        root))))
+    (when (and eslint (file-executable-p eslint))
+      (setq-local flycheck-javascript-eslint-executable eslint))))
+(add-hook 'flycheck-mode-hook #'my/use-eslint-from-node-modules)
+
+(add-hook 'js2-mode-hook 'ac-js2-mode)
+(setq ac-js2-evaluate-calls t)
+
+;; RACER FOR RUST
+(add-hook 'rust-mode-hook #'racer-mode)
+(add-hook 'racer-mode-hook #'eldoc-mode)
+(add-hook 'after-init-hook 'global-company-mode)
+
+(require 'rust-mode)
+(define-key rust-mode-map (kbd "TAB") #'company-indent-or-complete-common)
+(setq company-tooltip-align-annotations t)
 
 
 ;; IRONY MODE FOR CLANG
@@ -63,6 +163,23 @@
   (flycheck-clang-analyzer-setup))
 
 ;;(setq flycheck-check-syntax-automatically '(mode-enabled save))
+
+
+;; AUTOCOMPLET JS
+(require 'company)
+(require 'company-tern)
+
+(add-to-list 'company-backends 'company-tern)
+(add-hook 'js2-mode-hook (lambda ()
+                           (tern-mode)
+                           (company-mode)))
+;; Disable completion keybindings, as we use xref-js2 instead
+(define-key tern-mode-keymap (kbd "M-.") nil)
+(define-key tern-mode-keymap (kbd "M-,") nil)
+(add-hook 'js2-mode-hook 'ac-js2-mode)
+(setq ac-js2-evaluate-calls t)
+
+
 
 (setq flycheck-clang-analyzer-executable "clang-6.0")
 (flycheck-clang-analyzer-setup)
@@ -84,9 +201,7 @@
 
 (add-hook 'irony-mode-hook 'irony-cdb-autosetup-compile-options)
 
-(setq irony-additional-clang-options '("-std=c99"
-				       "-include"
-				       "-W"
+(setq irony-additional-clang-options '("-W"
 				       "-Wall"
 				       "-Werror"
 				       "-Wextra"
@@ -115,6 +230,8 @@
 ;; END IRONY MODE FOR CLANG
 
 ;; AUTOCOMPLETE
+
+(add-hook 'prog-mode-hook #'rainbow-delimiters-mode)
 
 (require 'auto-complete-config)
 
@@ -179,8 +296,6 @@
 
 (add-to-list 'custom-theme-load-path "~/.emacs.d/themes")
 
-(load "~/.emacs.d/column-marker.el")
-
 (global-column-enforce-mode t)
 (setq column-enforce-comments nil)
 
@@ -195,8 +310,9 @@
 (require 'doom-themes)
 
 (global-set-key [f8] 'neotree-toggle)
-;;(setq neo-theme (if (display-graphic-p) 'icons 'arrow))
+(setq neo-theme (if (display-graphic-p) 'icons 'arrow))
 (setq neo-theme (if window-system 'icons 'arrow))
+
 
 ;; Global settings (defaults)
 (setq doom-themes-enable-bold t    ; if nil, bold is universally disabled
