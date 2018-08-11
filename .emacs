@@ -1,4 +1,6 @@
 (menu-bar-mode -1)
+(tool-bar-mode -1)
+(set-frame-font "Source Code Pro Semibold 13" nil t)
 
 ;; LOAD MELPA
 
@@ -14,15 +16,17 @@
  ;; If you edit it by hand, you could mess it up, so be careful.
  ;; Your init file should contain only one such instance.
  ;; If there is more than one, they won't work right.
+ '(inhibit-startup-screen t)
  '(package-selected-packages
    (quote
-    (js-doc nix-mode web-mode-edit-element dockerfile-mode indium php-mode xref-js2 rainbow-identifiers rainbow-blocks vue-mode company-tern exec-path-from-shell web-mode eslint-fix js2-refactor ac-js2 pug-mode yaml-mode helm-spotify minimap irony-eldoc flycheck-irony flymake-css flymake-php flymake-ruby flymake-rust flymake-sass flymake-yaml flymake-cppcheck flycheck flycheck-clang-analyzer flycheck-clang-tidy flycheck-clangcheck iedit emmet-mode yasnippet-snippets auto-complete-clang-async csharp-mode highlight-context-line rainbow-mode spotlight column-enforce-mode all-the-icons-dired neotree doom-themes realgud el-get multiple-cursors rainbow-delimiters linum-relative simpleclip ac-racer company-racer flycheck-rust rust-mode ac-php irony lsp-rust racer rust-playground 0blayout ac-c-headers ac-clang ac-emmet powerline dracula-theme company-shell company-c-headers company virtualenv jedi avk-emacs-themes))))
+    (doom-modeline less-css-mode markdown-preview-mode markdown-mode envdir js-doc nix-mode web-mode-edit-element dockerfile-mode indium php-mode xref-js2 rainbow-identifiers rainbow-blocks vue-mode company-tern exec-path-from-shell web-mode eslint-fix js2-refactor ac-js2 pug-mode yaml-mode helm-spotify minimap irony-eldoc flycheck-irony flymake-css flymake-php flymake-ruby flymake-rust flymake-sass flymake-yaml flymake-cppcheck flycheck flycheck-clang-analyzer flycheck-clang-tidy flycheck-clangcheck iedit emmet-mode yasnippet-snippets auto-complete-clang-async csharp-mode highlight-context-line rainbow-mode spotlight column-enforce-mode all-the-icons-dired neotree doom-themes realgud el-get multiple-cursors rainbow-delimiters linum-relative simpleclip ac-racer company-racer flycheck-rust rust-mode ac-php irony lsp-rust racer rust-playground 0blayout ac-c-headers ac-clang ac-emmet powerline dracula-theme company-shell company-c-headers company virtualenv jedi avk-emacs-themes)))
+ '(scroll-bar-mode nil))
 (custom-set-faces
  ;; custom-set-faces was added by Custom.
  ;; If you edit it by hand, you could mess it up, so be careful.
  ;; Your init file should contain only one such instance.
  ;; If there is more than one, they won't work right.
- )
+ '(default ((t (:family "Source Code Pro" :foundry "ADBO" :slant normal :weight semi-bold :height 128 :width normal)))))
 (when (not package-archive-contents)
     (package-refresh-contents))
 
@@ -47,9 +51,16 @@
 
 ;; END LOAD ELGET
 
+(add-hook 'server-switch-hook #'raise-frame)
+
 
 ;; WEB MODE EMACS
-  (use-package web-mode
+(add-to-list 'load-path "~/emacs.d/emmet-mode")
+(require 'emmet-mode)
+(add-hook 'sgml-mode-hook 'emmet-mode) ;; Auto-start on any markup modes
+(add-hook 'css-mode-hook  'emmet-mode) ;; enable Emmet's css abbreviation.
+(add-hook 'html-mode-hook  'emmet-mode) ;; enable html.
+(use-package web-mode
     :ensure t
     :config
     (add-to-list 'auto-mode-alist '("\\.html?\\'" . web-mode))
@@ -289,11 +300,11 @@
 (require 'emmet-mode)
 (add-hook 'sgml-mode-hook 'emmet-mode) ;; Auto-start on any markup modes
 (add-hook 'css-mode-hook  'emmet-mode) ;; enable Emmet's css abbreviation.
+(add-hook 'web-mode-hook 'emmet-mode)
 
 ;; END AUTOCOMPLETE
 
 ;; THEME
-
 (add-to-list 'custom-theme-load-path "~/.emacs.d/themes")
 
 (global-column-enforce-mode t)
@@ -305,14 +316,15 @@
 (require 'neotree)
 (require 'all-the-icons)
 
-(setq all-the-icons-color-icons nil)
+(setq all-the-icons-color-icons 11)
 
 (require 'doom-themes)
 
 (global-set-key [f8] 'neotree-toggle)
-(setq neo-theme (if (display-graphic-p) 'icons 'arrow))
+(setq neo-theme (if  'icons 'arrow))
 (setq neo-theme (if window-system 'icons 'arrow))
-
+(setq inhibit-compacting-font-caches t)
+(add-hook 'after-init-hook #'neotree-toggle)
 
 ;; Global settings (defaults)
 (setq doom-themes-enable-bold t    ; if nil, bold is universally disabled
@@ -325,18 +337,22 @@
 ;; Enable flashing mode-line on errors
 (doom-themes-visual-bell-config)
 
-;; Enable custom neotree theme
-;(doom-themes-neotree-config)  ; all-the-icons fonts must be installed!
-
 ;; Corrects (and improves) org-mode's native fontification.
 
 (doom-themes-org-config)
+(require 'doom-modeline)
+(doom-modeline-init)
 
+;; (defun on-after-init ()
+;;   (unless (display-graphic-p (selected-frame))
+;;     (set-face-background 'default "unspecified-bg" (selected-frame))))
 
-(set-face-attribute 'region nil :background "#5599FF")
+(add-hook 'window-setup-hook 'on-after-init)
+;; (set-face-attribute 'region nil :background "unspecified-bg")
 
 (beacon-mode 1)
 (setq beacon-color "#88BBFF")
+
 
 ;; END THEME
 
@@ -349,8 +365,8 @@
 (simpleclip-mode 1)
 
 ;; POWERLINE
-(require 'powerline)
-(powerline-default-theme)
+;; (require 'powerline)
+;; (powerline-default-theme)
 
 ;; WHITESPACES
 (require 'whitespace)
@@ -360,11 +376,11 @@
         (newline-mark ?\n    [?◀ ?\n])
 	(tab-mark     ?\t    [?\u2502 ?\t] [?\\ ?\t])))
 (setq whitespace-style '(face trailing tabs newline tab-mark newline-mark))
-(set-face-background 'whitespace-tab "#000")
+(set-face-background 'whitespace-tab "unspecified-bg")
 (set-face-foreground 'whitespace-tab "#666698")
-(set-face-background 'whitespace-space "#000")
+(set-face-background 'whitespace-space "unspecified-bg")
 (set-face-foreground 'whitespace-space "#111111")
-(set-face-background 'whitespace-newline "#000")
+(set-face-background 'whitespace-newline "unspecified-bg")
 (set-face-foreground 'whitespace-newline "#666698")
 (global-whitespace-mode t)
 (add-hook 'before-save-hook 'whitespace-cleanup)
@@ -376,7 +392,7 @@
 (require 'linum-relative)
 (global-linum-mode t)
 (setq linum-format "%4d \u2502 ")
-(set-face-attribute 'linum nil :background "#000")
+(set-face-attribute 'linum nil :background "unspecified-bg")
 (set-face-attribute 'linum nil :foreground "#2196f3")
 
 ;; END LINUM
@@ -399,3 +415,4 @@
 (add-to-list 'load-path "~/.emacs.d/lisp")
 (load "~/.emacs.d/epitech/std.el")
 (load "~/.emacs.d/epitech/std_comment.el")
+
