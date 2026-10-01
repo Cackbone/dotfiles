@@ -1,0 +1,94 @@
+// Waybar for the driftwm session: same bar as niri (config.jsonc + style.css),
+// with the niri-only modules (workspaces, window title) swapped for a taskbar.
+{
+  "include": ["~/.config/waybar/config.jsonc"],
+
+  "modules-left": ["custom/logo", "group/desktops", "group/windows"],
+
+  "custom/logo": {
+    "format": "",
+    "tooltip": false,
+    "on-click": "driftwm msg action zoom-to-fit"
+  },
+
+  // virtual desktops (driftwm has none built in): desktop.sh draws a pill per desktop that
+  // exists on this bar's screen (current or holding windows). driftwm/bar-events.py sends
+  // SIGRTMIN+8 whenever windows, focus or desktops change, so the pills update instantly
+  "group/desktops": {
+    "orientation": "horizontal",
+    "spacing": 0,
+    "modules": ["custom/d1", "custom/d2", "custom/d3", "custom/d4", "custom/d5"]
+  },
+  "custom/d1": {
+    "exec": "~/.config/driftwm/desktop.sh status 1",
+    "return-type": "json", "interval": 30, "signal": 8,
+    "on-click": "~/.config/driftwm/desktop.sh go 1"
+  },
+  "custom/d2": {
+    "exec": "~/.config/driftwm/desktop.sh status 2",
+    "return-type": "json", "interval": 30, "signal": 8,
+    "on-click": "~/.config/driftwm/desktop.sh go 2"
+  },
+  "custom/d3": {
+    "exec": "~/.config/driftwm/desktop.sh status 3",
+    "return-type": "json", "interval": 30, "signal": 8,
+    "on-click": "~/.config/driftwm/desktop.sh go 3"
+  },
+  "custom/d4": {
+    "exec": "~/.config/driftwm/desktop.sh status 4",
+    "return-type": "json", "interval": 30, "signal": 8,
+    "on-click": "~/.config/driftwm/desktop.sh go 4"
+  },
+  "custom/d5": {
+    "exec": "~/.config/driftwm/desktop.sh status 5",
+    "return-type": "json", "interval": 30, "signal": 8,
+    "on-click": "~/.config/driftwm/desktop.sh go 5"
+  },
+
+  // the windows of this screen's current desktop: one icon per window, click to focus+centre
+  "group/windows": {
+    "orientation": "horizontal",
+    "spacing": 0,
+    "modules": ["custom/w1", "custom/w2", "custom/w3", "custom/w4", "custom/w5", "custom/w6", "custom/w7", "custom/w8"]
+  },
+  "custom/w1": {
+    "exec": "~/.config/driftwm/desktop.sh win 1",
+    "return-type": "json", "interval": 30, "signal": 8,
+    "on-click": "~/.config/driftwm/desktop.sh wfocus 1"
+  },
+  "custom/w2": {
+    "exec": "~/.config/driftwm/desktop.sh win 2",
+    "return-type": "json", "interval": 30, "signal": 8,
+    "on-click": "~/.config/driftwm/desktop.sh wfocus 2"
+  },
+  "custom/w3": {
+    "exec": "~/.config/driftwm/desktop.sh win 3",
+    "return-type": "json", "interval": 30, "signal": 8,
+    "on-click": "~/.config/driftwm/desktop.sh wfocus 3"
+  },
+  "custom/w4": {
+    "exec": "~/.config/driftwm/desktop.sh win 4",
+    "return-type": "json", "interval": 30, "signal": 8,
+    "on-click": "~/.config/driftwm/desktop.sh wfocus 4"
+  },
+  "custom/w5": {
+    "exec": "~/.config/driftwm/desktop.sh win 5",
+    "return-type": "json", "interval": 30, "signal": 8,
+    "on-click": "~/.config/driftwm/desktop.sh wfocus 5"
+  },
+  "custom/w6": {
+    "exec": "~/.config/driftwm/desktop.sh win 6",
+    "return-type": "json", "interval": 30, "signal": 8,
+    "on-click": "~/.config/driftwm/desktop.sh wfocus 6"
+  },
+  "custom/w7": {
+    "exec": "~/.config/driftwm/desktop.sh win 7",
+    "return-type": "json", "interval": 30, "signal": 8,
+    "on-click": "~/.config/driftwm/desktop.sh wfocus 7"
+  },
+  "custom/w8": {
+    "exec": "~/.config/driftwm/desktop.sh win 8",
+    "return-type": "json", "interval": 30, "signal": 8,
+    "on-click": "~/.config/driftwm/desktop.sh wfocus 8"
+  }
+}

@@ -1,0 +1,103 @@
+# Synthwave for yazi — palette: see README.md
+# Based on the yazi 26.x preset; only colors changed.
+
+[mgr]
+cwd = { fg = "#76e6f2", bold = true }
+find_keyword  = { fg = "#ffd166", bold = true, italic = true, underline = true }
+find_position = { fg = "#e040fb", bg = "reset", bold = true, italic = true }
+symlink_target = { fg = "#8b8bc7", italic = true }
+marker_copied   = { fg = "#69ff47", bg = "#69ff47" }
+marker_cut      = { fg = "#ff4f79", bg = "#ff4f79" }
+marker_marked   = { fg = "#00bcd4", bg = "#00bcd4" }
+marker_selected = { fg = "#e040fb", bg = "#e040fb" }
+count_copied   = { fg = "#131244", bg = "#69ff47" }
+count_cut      = { fg = "#131244", bg = "#ff4f79" }
+count_selected = { fg = "#131244", bg = "#e040fb" }
+border_symbol = "│"
+border_style  = { fg = "#3b2a78" }
+
+[tabs]
+active   = { fg = "#131244", bg = "#e040fb", bold = true }
+inactive = { fg = "#8b8bc7", bg = "#1a1a6e" }
+
+[mode]
+normal_main = { fg = "#131244", bg = "#e040fb", bold = true }
+normal_alt  = { fg = "#e040fb", bg = "#1a1a6e" }
+select_main = { fg = "#131244", bg = "#00bcd4", bold = true }
+select_alt  = { fg = "#00bcd4", bg = "#1a1a6e" }
+unset_main  = { fg = "#131244", bg = "#ff4f79", bold = true }
+unset_alt   = { fg = "#ff4f79", bg = "#1a1a6e" }
+
+[indicator]
+parent  = { fg = "#131244", bg = "#8b8bc7" }
+current = { fg = "#131244", bg = "#e040fb" }
+preview = { fg = "#76e6f2", underline = true }
+
+[status]
+overall    = { bg = "#131244" }
+perm_sep   = { fg = "#3b2a78" }
+perm_type  = { fg = "#69ff47" }
+perm_read  = { fg = "#ffd166" }
+perm_write = { fg = "#ff4f79" }
+perm_exec  = { fg = "#00bcd4" }
+progress_label  = { fg = "#e8e6ff", bold = true }
+progress_normal = { fg = "#e040fb", bg = "#1a1a6e" }
+progress_error  = { fg = "#ffd166", bg = "#ff4f79" }
+
+[which]
+border = { fg = "#e040fb" }
+cand   = { fg = "#76e6f2" }
+rest   = { fg = "#4a4a8a" }
+desc   = { fg = "#e040fb" }
+separator_style = { fg = "#3b2a78" }
+
+[confirm]
+border  = { fg = "#e040fb" }
+title   = { fg = "#e040fb" }
+btn_yes = { fg = "#131244", bg = "#e040fb" }
+
+[spot]
+border   = { fg = "#e040fb" }
+title    = { fg = "#e040fb" }
+tbl_col  = { fg = "#00bcd4" }
+tbl_cell = { fg = "#131244", bg = "#e040fb" }
+
+[notify]
+title_info  = { fg = "#69ff47" }
+title_warn  = { fg = "#ffd166" }
+title_error = { fg = "#ff4f79" }
+
+[pick]
+border = { fg = "#e040fb" }
+active = { fg = "#e040fb", bold = true }
+
+[input]
+border   = { fg = "#e040fb" }
+selected = { fg = "#131244", bg = "#e040fb" }
+
+[cmp]
+border = { fg = "#e040fb" }
+active = { fg = "#131244", bg = "#e040fb" }
+
+[tasks]
+border  = { fg = "#e040fb" }
+hovered = { fg = "#e040fb", bold = true }
+
+[help]
+border  = { fg = "#e040fb" }
+chord   = { fg = "#76e6f2" }
+hovered = { fg = "#131244", bg = "#e040fb", bold = true }
+
+[filetype]
+rules = [
+	{ mime = "**/image/*", fg = "#76e6f2" },
+	{ mime = "**/{audio,video}/*", fg = "#f07cff" },
+	{ mime = "**/application/{zip,rar,7z*,tar,gzip,xz,zstd,bzip*,lzma,compress,archive,cpio,arj,xar,ms-cab*}", fg = "#ff4f79" },
+	{ mime = "**/application/{pdf,doc,rtf}", fg = "#ffd166" },
+	{ mime = "vfs/{absent,stale}", fg = "#4a4a8a" },
+	{ url = "*", is = "orphan", bg = "#ff4f79" },
+	{ url = "*", is = "exec"  , fg = "#69ff47" },
+	{ url = "*", is = "dummy", bg = "#ff4f79" },
+	{ url = "*/", is = "dummy", bg = "#ff4f79" },
+	{ url = "*/", fg = "#e040fb", bold = true }
+]

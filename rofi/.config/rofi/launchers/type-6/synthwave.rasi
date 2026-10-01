@@ -1,0 +1,33 @@
+/* Synthwave variant of style-1: same layout, shared palette + night-city art. */
+@import "style-1.rasi"
+
+* {
+    font:            "JetBrainsMono Nerd Font 10";
+    background:      #131244;
+    background-alt:  #1a1a6e;
+    foreground:      #e8e6ff;
+    selected:        #e040fb;
+    active:          #00bcd4;
+    urgent:          #ff4f79;
+}
+
+/* the window covers the screen with a translucent dark backdrop that pushes everything else
+   back; the launcher itself (mainbox: 1000x500, navy, magenta border) sits centred on it */
+window {
+    fullscreen:       true;
+    transparency:     "real";
+    background-color: rgba(9, 13, 23, 45%);
+    border:           0px;
+    border-radius:    0px;
+    padding:          calc( 50% - 250px ) calc( 50% - 500px );
+}
+mainbox {
+    background-color: @background;
+    border:           3px solid;
+    border-color:     #e040fb;
+    border-radius:    0px;
+}
+
+imagebox {
+    background-image: url("~/.config/rofi/images/edgerunner.jpg", width);
+}

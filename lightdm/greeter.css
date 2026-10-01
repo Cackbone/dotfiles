@@ -1,0 +1,63 @@
+/* lightdm-gtk-greeter widgets (ids from its UI file) — appended to the GTK3 synthwave css */
+
+#panel_window,
+#menubar {
+  background: #090d17;
+  color: #e8e6ff;
+  border-bottom: 1px solid #e040fb;
+  font-family: "JetBrainsMono Nerd Font", monospace;
+}
+#panel_window menubar,
+#panel_window menubar > menuitem { background: transparent; color: #e8e6ff; box-shadow: none; }
+#panel_window menubar > menuitem:hover { background: #1a1a6e; color: #76e6f2; }
+#clock_menuitem, #clock_menuitem label { color: #76e6f2; font-weight: bold; }
+
+#login_window,
+#power_window {
+  background: #131244;
+  border: 3px solid #e040fb;
+  border-radius: 0;
+  box-shadow: none;
+}
+#content_frame, #power_content_frame { padding: 24px 32px 8px; background: transparent; border: none; }
+#buttonbox_frame, #power_buttonbox_frame { padding: 8px 32px 24px; background: transparent; border: none; }
+
+#login_window entry,
+#prompt_entry {
+  background: #090d17;
+  color: #e8e6ff;
+  border: 1px solid #3b2a78;
+  border-radius: 0;
+  min-height: 34px;
+  padding: 0 10px;
+  caret-color: #e040fb;
+}
+#prompt_entry:focus { border-color: #e040fb; box-shadow: inset 0 0 0 1px #e040fb; }
+
+#login_button, #power_ok_button {
+  background: #e040fb;
+  color: #131244;
+  font-weight: bold;
+  border: none;
+  border-radius: 0;
+  padding: 6px 20px;
+}
+#login_button:hover, #power_ok_button:hover { background: #f07cff; }
+#cancel_button, #power_cancel_button {
+  background: #1a1a6e;
+  color: #e8e6ff;
+  border: 1px solid #3b2a78;
+  border-radius: 0;
+}
+
+#user_combobox, #user_combobox button, #user_combobox cellview {
+  background: #1a1a6e;
+  color: #e8e6ff;
+  border-radius: 0;
+  border-color: #3b2a78;
+}
+#user_image { border: 2px solid #e040fb; border-radius: 50%; }
+
+#greeter_infobar { background: #ff4f79; color: #131244; border: none; }
+#message_label { color: #ff4f79; }
+#power_title { color: #e040fb; font-weight: bold; }

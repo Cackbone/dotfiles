@@ -1,0 +1,217 @@
+# driftwm — infinite 2D canvas compositor (session next to niri; pick it in LightDM)
+# Only overrides are listed; everything else is the built-in default.
+# Reference: /etc/driftwm/config.reference.toml   Validate: driftwm --check-config
+# Palette: see README.md
+
+mod_key = "super"
+focus_follows_mouse = true
+# new windows snap next to what you're looking at (each screen is its own canvas area,
+# so the pan this can cause never reaches another screen)
+window_placement = "auto"
+
+autostart = [
+    # Spotify in the background (Connect device + MPRIS): control it with nowplaying (Mod+F7),
+    # the bar's music pill and the media keys
+    "spotify_player --daemon",
+    "waybar -c ~/.config/waybar/driftwm.jsonc",
+    "mako",
+    "swayidle -w timeout 600 'swaylock -f' before-sleep 'swaylock -f'",
+    "wl-paste --watch cliphist store",
+    # every screen is its own canvas: put each camera on its own area
+    "~/.config/driftwm/arrange-cameras.sh",
+    # after closing a window, focus the closest one on the same screen
+    "~/.config/driftwm/refocus.py",
+    # a screen pulled into another screen's area (Alt-Tab, focus requests…) goes back, and the
+    # mouse moves to the screen that owns the window instead: no mirrored screens
+    "~/.config/driftwm/guard.py",
+    # refresh the bar's desktop/window pills when windows, focus or desktops change
+    "~/.config/driftwm/bar-events.py",
+]
+
+[session]
+# cameras are arranged at login by arrange-cameras.sh (restoring would fight it)
+restore_camera = false
+restore_bookmarks = true
+
+[input.keyboard]
+layout = "fr"
+num_lock = true
+# bindings below are AZERTY key names (& é " ' for bookmarks, like i3's workspaces)
+layout_independent = false
+
+[input.trackpad]
+tap_to_click = true
+natural_scroll = true
+
+[navigation]
+drift = 0.4
+# closing a window doesn't pan to the next one: it may be on another screen, and the pan
+# would pull this screen into that screen's area; focus only moves to a visible window
+auto_navigate_on_close = false
+
+[snap]
+gap = 14.0
+
+[decorations]
+# flat, square, magenta-bordered windows like niri / the mockup
+corner_radius = 0
+shadow = false
+border_width = 3
+border_color = "#3b2a78"
+border_color_focused = "#e040fb"
+# driftwm's own title bar (only for windows that ask for server-side decorations)
+bg_color = "#131244"
+fg_color = "#e8e6ff"
+font = "JetBrainsMono Nerd Font"
+font_size = 10
+
+[zoom]
+# keep the zoom you chose: don't jump back to 100% when a window opens or asks for focus
+reset_on_new_window = false
+reset_on_activation = false
+
+[effects]
+blur_radius = 3
+
+[background]
+# the night city fixed behind the canvas (use type = "tile" + mirror_tile = true
+# instead if you want it to scroll with the canvas)
+type = "wallpaper"
+path = "~/.local/share/wallpapers/night-city@2x.png"
+
+[output.outline]
+# outline of where the *other* screens are looking: off, it reads as stray borders
+thickness = 0
+
+# same arrangement as niri / ~/.screenlayout/home.sh
+[[outputs]]
+name = "DP-1"
+position = [0, 0]
+
+[[outputs]]
+name = "HDMI-A-2"
+position = [2560, 180]
+
+[[outputs]]
+name = "eDP-1"
+scale = 1.25
+position = [4480, 180]
+
+[keybindings]
+# --- apps (same keys as niri / i3)
+"mod+return" = "exec kitty"
+"mod+d" = "exec rofi -show drun -theme ~/.config/rofi/launchers/type-6/synthwave.rasi"
+"mod+v" = "spawn cliphist list | rofi -dmenu -theme ~/.config/rofi/launchers/type-6/synthwave.rasi | cliphist decode | wl-copy"
+"mod+e" = "exec kitty --class yazi yazi"
+"mod+f1" = "exec firefox"
+"mod+f2" = "exec discord"
+"mod+f3" = "exec thunar"
+"mod+f5" = "exec emacs"
+"mod+f7" = "exec kitty --class nowplaying --title nowplaying nowplaying"
+"mod+f8" = "spawn ~/.config/driftwm/showcase.py"          # lay out the showcase on the big screen
+"mod+f9" = "exec kitty --class clawd --title \"Claude usage\" clawd"   # Claude quotas + Clawd
+"mod+alt+l" = "spawn swaylock"
+"mod+shift+a" = "close-window"
+
+# --- move around: arrows + jklm like i3 → nearest window on this screen, then on to the
+#     next screen at its edge (nav.py)
+"mod+left"  = "spawn ~/.config/driftwm/nav.py left"
+"mod+down"  = "spawn ~/.config/driftwm/nav.py down"
+"mod+up"    = "spawn ~/.config/driftwm/nav.py up"
+"mod+right" = "spawn ~/.config/driftwm/nav.py right"
+"mod+j" = "spawn ~/.config/driftwm/nav.py left"
+"mod+k" = "spawn ~/.config/driftwm/nav.py down"
+"mod+l" = "spawn ~/.config/driftwm/nav.py up"
+"mod+m" = "spawn ~/.config/driftwm/nav.py right"
+"mod+shift+j" = "nudge-window left"
+"mod+shift+k" = "nudge-window down"
+"mod+shift+l" = "nudge-window up"
+"mod+shift+m" = "nudge-window right"
+
+# --- see the whole canvas (like niri's overview)
+"mod+tab" = "spawn ~/.config/driftwm/desktop.sh overview"
+"mod+o" = "spawn ~/.config/driftwm/desktop.sh overview"
+"mod+w" = "spawn ~/.config/driftwm/desktop.sh overview"
+"mod+agrave" = "zoom-reset"
+
+# --- window size: Mod+R = i3-style resize mode (arrows / jklm, shift = fine, esc to leave)
+"mod+r" = "spawn ~/.config/driftwm/resize-mode.sh"
+"mod+shift+f" = "fit-window"
+"mod+g" = "fill-window"
+
+# --- desktops 1-5 on the AZERTY number row (per screen, like niri) — see desktop.sh
+#     same key again or Mod+² = previous desktop; +Shift = send the focused window there
+"mod+ampersand" = "spawn ~/.config/driftwm/desktop.sh go 1"
+"mod+eacute" = "spawn ~/.config/driftwm/desktop.sh go 2"
+"mod+quotedbl" = "spawn ~/.config/driftwm/desktop.sh go 3"
+"mod+apostrophe" = "spawn ~/.config/driftwm/desktop.sh go 4"
+"mod+parenleft" = "spawn ~/.config/driftwm/desktop.sh go 5"
+"mod+shift+ampersand" = "spawn ~/.config/driftwm/desktop.sh send 1"
+"mod+shift+eacute" = "spawn ~/.config/driftwm/desktop.sh send 2"
+"mod+shift+quotedbl" = "spawn ~/.config/driftwm/desktop.sh send 3"
+"mod+shift+apostrophe" = "spawn ~/.config/driftwm/desktop.sh send 4"
+"mod+shift+parenleft" = "spawn ~/.config/driftwm/desktop.sh send 5"
+# AZERTY: with Shift held the number row types 1-5, so driftwm may see these names instead
+"mod+shift+1" = "spawn ~/.config/driftwm/desktop.sh send 1"
+"mod+shift+2" = "spawn ~/.config/driftwm/desktop.sh send 2"
+"mod+shift+3" = "spawn ~/.config/driftwm/desktop.sh send 3"
+"mod+shift+4" = "spawn ~/.config/driftwm/desktop.sh send 4"
+"mod+shift+5" = "spawn ~/.config/driftwm/desktop.sh send 5"
+"mod+twosuperior" = "spawn ~/.config/driftwm/desktop.sh back"
+
+# --- send the focused window to the neighbouring screen (lands in that screen's view);
+#     Mod+Alt+arrows is driftwm's default, Mod+Shift+Ctrl+arrows matches niri
+"mod+shift+ctrl+left"  = "send-to-output left"
+"mod+shift+ctrl+right" = "send-to-output right"
+"mod+shift+ctrl+up"    = "send-to-output up"
+"mod+shift+ctrl+down"  = "send-to-output down"
+
+# --- hardware keys (pactl: there's no wpctl on this system)
+"XF86AudioRaiseVolume" = "spawn pactl set-sink-volume @DEFAULT_SINK@ +5%"
+"XF86AudioLowerVolume" = "spawn pactl set-sink-volume @DEFAULT_SINK@ -5%"
+"XF86AudioMute" = "spawn pactl set-sink-mute @DEFAULT_SINK@ toggle"
+"XF86AudioMicMute" = "spawn pactl set-source-mute @DEFAULT_SOURCE@ toggle"
+
+# --- screenshots (grim + slurp): region → clipboard + ~/Pictures/Screenshots
+"Print" = "spawn mkdir -p ~/Pictures/Screenshots && grim -g \"$(slurp -d)\" - | tee ~/Pictures/Screenshots/$(date +%F_%H-%M-%S).png | wl-copy"
+"mod+f4" = "spawn mkdir -p ~/Pictures/Screenshots && grim -g \"$(slurp -d)\" - | tee ~/Pictures/Screenshots/$(date +%F_%H-%M-%S).png | wl-copy"
+"shift+Print" = "spawn grim - | wl-copy"
+
+# --- driftwm's default bookmark keys (Mod+1-4) aren't used
+"mod+1" = "none"
+"mod+2" = "none"
+"mod+3" = "none"
+"mod+4" = "none"
+
+# glass bar: frost behind waybar (layer surfaces match on their namespace)
+[[window_rules]]
+app_id = "waybar"
+blur = true
+corner_radius = 18
+
+[[window_rules]]
+app_id = "/^(pavucontrol|org.pulseaudio.pavucontrol|nm-connection-editor)$/"
+size = [900, 600]
+
+[[window_rules]]
+title = "Picture-in-Picture"
+pinned_to_screen = true
+
+# the RESIZE badge of resize-mode.sh: small, pinned near the bottom centre of the screen
+[[window_rules]]
+app_id = "driftwm-resize"
+pinned_to_screen = true
+position = [0, -320]
+size = [560, 44]
+decoration = "minimal"
+border_width = 0
+
+# the nowplaying mini player (Mod+F7, or right-click the music pill in the bar)
+[[window_rules]]
+app_id = "nowplaying"
+size = [760, 300]
+
+# the Claude usage window (Mod+F9, clawd)
+[[window_rules]]
+app_id = "clawd"
+size = [1000, 340]

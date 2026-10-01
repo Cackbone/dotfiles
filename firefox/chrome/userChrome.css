@@ -1,0 +1,75 @@
+/* Synthwave Firefox UI — palette: see README.md
+   Variable names come from Firefox's ThemeVariableMap / LightweightThemeConsumer (v157).
+   Themes set them inline, so every override needs !important. */
+
+:root {
+  /* tab strip */
+  --lwt-accent-color: #090d17 !important;
+  --lwt-text-color: #8b8bc7 !important;
+  --tab-background-color-selected: #131244 !important;
+  --tab-text-color-selected: #e8e6ff !important;
+  --lwt-tab-line-color: #e040fb !important;
+  --tab-loading-fill: #00bcd4 !important;
+  --lwt-background-tab-separator-color: #3b2a78 !important;
+
+  /* nav bar */
+  --toolbar-background-color: #131244 !important;
+  --toolbar-text-color: #e8e6ff !important;
+  --toolbarbutton-icon-fill: #c8c6ef !important;
+  --toolbarbutton-icon-fill-attention: #e040fb !important;
+  --toolbarbutton-background-color-hover: #1a1a6e !important;
+  --toolbarbutton-background-color-active: #3b2a78 !important;
+  --toolbarseparator-color: #3b2a78 !important;
+  --tabs-navbar-separator-color: transparent !important;
+  --chrome-content-separator-color: #e040fb !important;
+
+  /* url bar */
+  --toolbar-field-background-color: #090d17 !important;
+  --toolbar-field-text-color: #e8e6ff !important;
+  --toolbar-field-border-color: #3b2a78 !important;
+  --toolbar-field-background-color-focus: #090d17 !important;
+  --toolbar-field-text-color-focus: #e8e6ff !important;
+  --toolbar-field-border-color-focus: #e040fb !important;
+  --lwt-toolbar-field-highlight: #e040fb !important;
+  --lwt-toolbar-field-highlight-text: #131244 !important;
+  --urlbarview-background-color-selected: #1a1a6e !important;
+  --urlbarview-text-color-selected: #76e6f2 !important;
+
+  /* menus, popups, sidebar */
+  --panel-background-color: #131244 !important;
+  --panel-text-color: #e8e6ff !important;
+  --panel-border-color: #e040fb !important;
+  --sidebar-background-color: #131244 !important;
+  --sidebar-text-color: #e8e6ff !important;
+  --sidebar-border-color: #3b2a78 !important;
+  --tabpanel-background-color: #131244 !important;
+  --focus-outline-color: #e040fb !important;
+}
+
+/* selected tab gets the magenta window border + glow, like the niri focus */
+.tab-background:is([selected], [multiselected]) {
+  outline: 1px solid #e040fb !important;
+  outline-offset: -1px !important;
+  box-shadow: 0 0 10px #e040fb40 !important;
+}
+
+/* the coding font in the url bar */
+#urlbar-input,
+.urlbarView-row {
+  font-family: "JetBrainsMono Nerd Font", monospace !important;
+}
+
+/* url bar: focused ring in magenta, no default blue */
+#urlbar[focused] > .urlbar-background {
+  outline: 1px solid #e040fb !important;
+  box-shadow: 0 0 12px #e040fb40 !important;
+}
+
+/* tab strip: flat deep navy (no theme gradient / header image) */
+#navigator-toolbox {
+  background: #090d17 !important;
+}
+#nav-bar,
+#PersonalToolbar {
+  background-color: #131244 !important;
+}

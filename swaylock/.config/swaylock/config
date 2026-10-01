@@ -1,0 +1,27 @@
+image=~/.local/share/wallpapers/night-city-lock.png
+scaling=fill
+font=JetBrainsMono Nerd Font
+indicator-radius=110
+indicator-thickness=8
+show-failed-attempts
+ignore-empty-password
+
+inside-color=131244cc
+inside-clear-color=131244cc
+inside-ver-color=131244cc
+inside-wrong-color=131244cc
+ring-color=e040fb
+ring-clear-color=76e6f2
+ring-ver-color=00bcd4
+ring-wrong-color=ff4f79
+key-hl-color=69ff47
+bs-hl-color=ff4f79
+line-color=00000000
+line-clear-color=00000000
+line-ver-color=00000000
+line-wrong-color=00000000
+separator-color=00000000
+text-color=e8e6ff
+text-clear-color=76e6f2
+text-ver-color=00bcd4
+text-wrong-color=ff4f79

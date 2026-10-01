@@ -1,0 +1,8 @@
+[Desktop Entry]
+# Overrides /etc/xdg/autostart/picom.desktop (installed by the picom package), which starts
+# picom in *every* session. i3 already launches picom from its own config, so this second
+# copy failed with "Another composite manager is already running"; on Wayland it's useless.
+Type=Application
+Name=Picom
+Exec=picom
+Hidden=true

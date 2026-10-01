@@ -1,0 +1,96 @@
+/* Synthwave on top of Adwaita-dark for GTK3 apps (Thunar, pavucontrol, file dialogs…).
+   Palette: see README.md */
+@define-color deep    #090d17;
+@define-color navy    #131244;
+@define-color view    #0f0e38;
+@define-color panel   #1a1a6e;
+@define-color edge    #3b2a78;
+@define-color fg      #e8e6ff;
+@define-color dim     #8b8bc7;
+@define-color magenta #e040fb;
+@define-color cyan    #00bcd4;
+@define-color ice     #76e6f2;
+
+/* named colors, for apps that use them */
+@define-color theme_bg_color @navy;
+@define-color theme_fg_color @fg;
+@define-color theme_base_color @view;
+@define-color theme_text_color @fg;
+@define-color theme_selected_bg_color @magenta;
+@define-color theme_selected_fg_color @navy;
+@define-color theme_unfocused_bg_color @navy;
+@define-color theme_unfocused_fg_color @dim;
+@define-color borders @edge;
+@define-color accent_color @magenta;
+@define-color accent_bg_color @magenta;
+
+window, dialog, .background, popover, menu, .menu, .context-menu {
+  background-color: @navy;
+  color: @fg;
+}
+
+headerbar, .titlebar, toolbar, .toolbar, menubar, .primary-toolbar {
+  background: @deep;
+  color: @fg;
+  border-color: @edge;
+  box-shadow: none;
+}
+
+.view, treeview.view, iconview, textview text, .content-view, list, row {
+  background-color: @view;
+  color: @fg;
+}
+
+/* sidebars: Thunar shortcuts pane, file chooser places */
+.sidebar, placessidebar, placessidebar list, .shortcuts-pane, stacksidebar {
+  background-color: @deep;
+  color: @fg;
+  border-color: @edge;
+}
+
+/* selection everywhere */
+.view:selected, treeview.view:selected, iconview:selected, row:selected,
+.view:selected:focus, *:selected, selection {
+  background-color: @magenta;
+  color: @navy;
+}
+.view:hover, row:hover { background-color: alpha(@magenta, 0.12); }
+
+entry {
+  background: @deep;
+  color: @fg;
+  border-color: @edge;
+  caret-color: @magenta;
+}
+entry:focus { border-color: @magenta; box-shadow: inset 0 0 0 1px @magenta; }
+
+button {
+  background: @panel;
+  color: @fg;
+  border-color: @edge;
+  box-shadow: none;
+  text-shadow: none;
+}
+button:hover   { background: @edge; }
+button:active, button:checked { background: @magenta; color: @navy; }
+button.flat, button.flat:not(:hover) { background: transparent; border-color: transparent; }
+
+scrollbar slider         { background-color: @edge; }
+scrollbar slider:hover   { background-color: @magenta; }
+scale highlight, progressbar progress, levelbar block.filled { background: @magenta; border-color: @magenta; }
+scale trough, progressbar trough { background: @panel; }
+switch:checked { background: @magenta; border-color: @magenta; }
+checkbutton check:checked, radiobutton radio:checked, check:checked, radio:checked {
+  background: @magenta; color: @navy; border-color: @magenta;
+}
+
+notebook header, notebook tabs { background: @deep; border-color: @edge; }
+notebook tab:checked { box-shadow: inset 0 -2px @magenta; color: @fg; }
+
+tooltip, tooltip.background { background: @navy; color: @fg; border: 1px solid @magenta; }
+separator { background: @edge; }
+link, *:link { color: @ice; }
+
+/* Thunar path bar / location entry */
+.path-bar button, .path-bar-button { background: transparent; color: @dim; }
+.path-bar button:checked, .path-bar-button:checked { color: @ice; box-shadow: inset 0 -2px @cyan; background: transparent; }

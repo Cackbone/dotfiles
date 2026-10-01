@@ -1,0 +1,35 @@
+# Wayland session (niri)
+niri
+xwayland-satellite
+xdg-desktop-portal-gnome
+xdg-desktop-portal-gtk
+mate-polkit
+swaybg
+swayidle
+swaylock
+mako
+waybar
+wl-clipboard
+cliphist
+brightnessctl
+playerctl
+pavucontrol
+# file manager: icons + thumbnails for Thunar
+papirus-icon-theme
+tumbler
+ffmpegthumbnailer
+# driftwm session (2D canvas): driftwm itself is AUR (yay -S driftwm); screenshots
+grim
+slurp
+# terminal & tools
+kitty
+fastfetch
+btop
+yazi
+cava
+stow
+# fonts: coding font + emoji + CJK fallback
+ttf-jetbrains-mono-nerd
+noto-fonts
+noto-fonts-emoji
+noto-fonts-cjk

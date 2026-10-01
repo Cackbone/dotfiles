@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Claude usage
+Comment=Claude plan quotas with an animated Clawd
+Exec=kitty --class clawd --title "Claude usage" clawd
+Icon=utilities-system-monitor
+Categories=Utility;

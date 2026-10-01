@@ -1,0 +1,139 @@
+// Waybar — floating pill bar (niri)
+{
+  "layer": "top",
+  "position": "top",
+  // sizes that are whole pixels on the laptop's 1.25 scale too (46 → 57.5 px clipped the
+  // bottom border there): 48 → 60, 8 → 10, 16 → 20
+  "height": 48,
+  "margin-top": 8,
+  "margin-left": 16,
+  "margin-right": 16,
+  "spacing": 6,
+
+  "modules-left": ["custom/logo", "niri/workspaces", "niri/window"],
+  "modules-center": ["group/music"],
+  "modules-right": ["network", "pulseaudio", "battery", "temperature", "clock#date", "custom/time", "tray"],
+
+  "custom/logo": {
+    "format": "",
+    "tooltip": false,
+    "on-click": "niri msg action toggle-overview"
+  },
+
+  "niri/workspaces": {
+    "format": "{index}"
+  },
+
+  "niri/window": {
+    "format": "  {title}",
+    "max-length": 40,
+    "separate-outputs": true,
+    "rewrite": { "": "desktop" }
+  },
+
+  // music pill: a small monochrome live equalizer while playing (cava), pause icon when
+  // paused, title + artist (scripts/music.sh). Hidden when nothing plays.
+  // the album cover + the music pill, joined into one pill (no spacing between them)
+  "group/music": {
+    "orientation": "horizontal",
+    "spacing": 0,
+    "modules": ["image#cover", "custom/eq", "custom/music"]
+  },
+
+  "image#cover": {
+    "exec": "~/.config/waybar/scripts/cover.sh",
+    "size": 26,
+    "interval": 10,
+    "signal": 9,
+    "on-click": "playerctl -p spotify_player,spotify,%any play-pause",
+    "on-click-right": "kitty --class nowplaying --title nowplaying nowplaying"
+  },
+
+  // equalizer / pause icon on its own, so it sits centred in the pill (scripts/eq.sh)
+  "custom/eq": {
+    "exec": "~/.config/waybar/scripts/eq.sh",
+    "return-type": "json",
+    "escape": false,
+    "on-click": "playerctl -p spotify_player,spotify,%any play-pause",
+    "on-click-right": "kitty --class nowplaying --title nowplaying nowplaying"
+  },
+
+  "custom/music": {
+    "exec": "~/.config/waybar/scripts/music.sh",
+    "return-type": "json",
+    "escape": false,
+    "justify": "left", "align": 0,
+    "on-click": "playerctl -p spotify_player,spotify,%any play-pause",
+    "on-click-right": "kitty --class nowplaying --title nowplaying nowplaying",
+    "on-scroll-up": "playerctl -p spotify_player,spotify,%any next",
+    "on-scroll-down": "playerctl -p spotify_player,spotify,%any previous"
+  },
+
+  "network": {
+    // the icon follows the signal (md-wifi_strength_*); nm-applet's separate tray icon is
+    // disabled (autostart package), its job is here: click = nmtui, right-click = editor
+    "format-wifi": "{icon}  <b>{essid}</b>\n<span size='smaller' foreground='#8b8bc7'>{signalStrength}% · {frequency} GHz</span>",
+    "format-ethernet": "󰈀  <b>{ifname}</b>\n<span size='smaller' foreground='#8b8bc7'>{ipaddr}</span>",
+    "format-disconnected": "󰤮  offline",
+    "format-icons": ["󰤯", "󰤟", "󰤢", "󰤥", "󰤨"],
+    "tooltip-format": "{ifname} {ipaddr}/{cidr}\n\uf063 {bandwidthDownBits}  \uf062 {bandwidthUpBits}",
+    "interval": 5,
+    "on-click": "kitty --class floating -e nmtui",
+    "on-click-right": "nm-connection-editor"
+  },
+
+  "pulseaudio": {
+    "format": "{icon}  <b>{volume}%</b>",
+    "format-muted": "\ueee8  <b>mute</b>",
+    "format-icons": { "default": ["", "", ""] },
+    "scroll-step": 5,
+    "on-click": "pavucontrol",
+    "on-click-right": "pactl set-sink-mute @DEFAULT_SINK@ toggle"
+  },
+
+  "battery": {
+    "bat": "BAT0",
+    "states": { "warning": 25, "critical": 12 },
+    // one line when plugged/full (no time to show), two lines only while (dis)charging
+    "format": "{icon}  <b>{capacity}%</b>",
+    "format-plugged": "\uf1e6  <b>{capacity}%</b>",
+    "format-discharging": "{icon}  <b>{capacity}%</b>\n<span size='smaller' foreground='#8b8bc7'>{time}</span>",
+    "format-charging": "\uf0e7  <b>{capacity}%</b>\n<span size='smaller' foreground='#8b8bc7'>{time}</span>",
+    "format-time": "{H}h {M}m",
+    "format-icons": ["\uf244", "\uf243", "\uf242", "\uf241", "\uf240"]
+  },
+
+  "temperature": {
+    "hwmon-path-abs": "/sys/devices/platform/coretemp.0/hwmon",
+    "input-filename": "temp1_input",
+    "critical-threshold": 85,
+    "format": "  <b>{temperatureC}°C</b>"
+  },
+
+  "clock#date": {
+    "format": "  <b>{0:%a %d %b}</b>\n<span size='smaller' foreground='#8b8bc7'>week {0:%V · %Y}</span>",
+    "tooltip-format": "<tt>{calendar}</tt>",
+    "calendar": {
+      "mode": "month",
+      "weeks-pos": "left",
+      "format": {
+        "months": "<span color='#76e6f2'><b>{}</b></span>",
+        "weeks": "<span color='#4a4a8a'>W{}</span>",
+        "weekdays": "<span color='#e040fb'><b>{}</b></span>",
+        "today": "<span color='#69ff47'><b><u>{}</u></b></span>"
+      }
+    },
+    "locale": "C"
+  },
+
+  "custom/time": {
+    // LCD clock with blinking colon (scripts/clock.sh prints one line per second)
+    "exec": "~/.config/waybar/scripts/clock.sh",
+    "tooltip": false
+  },
+
+  "tray": {
+    "icon-size": 16,
+    "spacing": 8
+  }
+}

@@ -1,0 +1,9 @@
+[Plymouth Theme]
+Name=Synthwave
+Description=The dithered portrait fading in on navy
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/synthwave
+ScriptFile=/usr/share/plymouth/themes/synthwave/synthwave.script
+ConsoleLogBackgroundColor=0x131244
