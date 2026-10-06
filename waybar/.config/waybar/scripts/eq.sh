@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # waybar: a small monochrome live equalizer (cava, 4 bars) while music plays, the pause icon
-# when paused, nothing when idle. One JSON line per frame (~10/s). Play/pause comes from
+# when paused, nothing when idle; while it plays on another device (phone…), that device's
+# icon instead (there's nothing to hear here). One JSON line per frame (~25/s). Play/pause comes from
 # spotify_player directly when it runs (its MPRIS state lags 2-3 s), else MPRIS.
 # waybar forwards its refresh signals (RTMIN+8 desktops, RTMIN+9 cover) to running
 # scripts, and their default action is to terminate: ignore them
@@ -13,7 +14,7 @@ CFG=${XDG_RUNTIME_DIR:-/tmp}/waybar-eq-cava.cfg
 cat > "$CFG" <<'CFG'
 [general]
 bars = 4
-framerate = 10
+framerate = 25
 [input]
 method = pulse
 source = auto
@@ -32,22 +33,32 @@ trap '[[ -n ${CAVA_PID:-} ]] && kill "$CAVA_PID" 2>/dev/null' EXIT
 trap 'exit 0' TERM HUP INT                 # so the EXIT trap (stop cava) runs when waybar quits
 
 nowms() { local t=$EPOCHREALTIME; echo $(( ${t%.*} * 1000 + 10#${t#*.} / 1000 )); }
-status="" last_poll=0 eq="0;0;0;0;" loud=0 last=""
+status="" remote="" last_poll=0 eq="0;0;0;0;" loud=0 last=""
 poll() {
     local json
-    if pgrep -x spotify_player >/dev/null && json=$(timeout 1 spotify_player get key playback 2>/dev/null) \
-            && [[ $json == "{"* ]] && jq -e '.item' <<<"$json" >/dev/null 2>&1; then
-        jq -e '.is_playing' <<<"$json" >/dev/null && status=Playing || status=Paused
+    remote=""
+    local st dn
+    if json=$("$HOME/.local/bin/spotify-state") && [[ $json == "{"* ]] \
+            && IFS=$'\t' read -r st dn < <(jq -r 'select(.item) | [(if .is_playing then "Playing" else "Paused" end),
+                                                 (.device.name // "")] | join("\t")' <<<"$json") && [[ -n $st ]]; then
+        status=$st                                # one query; the device's icon only when it isn't this one
+        [[ -n $dn && $dn != spotify-player ]] && remote=$("$HOME/.local/bin/spotify-state" --device | cut -f1)
     else
         status=$(playerctl -p "$PLAYERS" status 2>/dev/null)
     fi
 }
 while :; do
     n=$(nowms)
-    (( n - last_poll >= 500 )) && { poll; last_poll=$n; }
-    while IFS= read -r -t 0.001 -u "${CAVA[0]}" line; do eq=$line; done
+    (( n - last_poll >= 1000 )) && { poll; last_poll=$n; }
+    # (cava gone — PulseAudio restarted…: no levels, the fake bounce stands in)
+    [[ -n ${CAVA[0]:-} ]] && while IFS= read -r -t 0.001 -u "${CAVA[0]}" line; do eq=$line; done
     case $status in
         Playing)
+            if [[ -n $remote ]]; then
+                out="{\"text\": \"$remote\", \"class\": \"remote\"}"
+                [[ $out != "$last" ]] && { printf '%s\n' "$out"; last=$out; }
+                sleep 0.04; continue
+            fi
             IFS=';' read -ra v <<<"$eq"
             (( ${v[0]:-0} + ${v[1]:-0} + ${v[2]:-0} + ${v[3]:-0} > 0 )) && loud=$n
             if (( n - loud > 1500 )); then           # silent output (muted…): soft fake bounce
@@ -61,5 +72,5 @@ while :; do
         *)       out='{"text": ""}' ;;
     esac
     [[ $out != "$last" ]] && { printf '%s\n' "$out"; last=$out; }
-    sleep 0.1
+    sleep 0.04
 done

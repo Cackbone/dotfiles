@@ -147,7 +147,7 @@ window-rule {
 spawn-at-startup "waybar"
 spawn-at-startup "mako"
 // Spotify in the background (Connect device + MPRIS): nowplaying (Mod+F7), bar, media keys
-spawn-at-startup "spotify_player" "--daemon"
+spawn-sh-at-startup "RUST_LOG=spotify_player=info,librespot=info,spotify_player::cli=warn spotify_player --daemon"
 spawn-sh-at-startup "swaybg -m fill -i ~/.local/share/wallpapers/night-city@2x.png"
 spawn-sh-at-startup "swayidle -w timeout 600 'swaylock -f' timeout 900 'niri msg action power-off-monitors' before-sleep 'swaylock -f'"
 spawn-sh-at-startup "wl-paste --watch cliphist store"
@@ -195,7 +195,7 @@ binds {
     XF86AudioLowerVolume allow-when-locked=true { spawn-sh "pactl set-sink-volume @DEFAULT_SINK@ -5%"; }
     XF86AudioMute        allow-when-locked=true { spawn-sh "pactl set-sink-mute @DEFAULT_SINK@ toggle"; }
     XF86AudioMicMute     allow-when-locked=true { spawn-sh "pactl set-source-mute @DEFAULT_SOURCE@ toggle"; }
-    XF86AudioPlay        allow-when-locked=true { spawn "playerctl" "play-pause"; }
+    XF86AudioPlay        allow-when-locked=true { spawn-sh "~/.local/bin/music-ctl play-pause"; }
     XF86AudioPause       allow-when-locked=true { spawn "playerctl" "pause"; }
     XF86AudioStop        allow-when-locked=true { spawn "playerctl" "stop"; }
     XF86AudioNext        allow-when-locked=true { spawn "playerctl" "next"; }

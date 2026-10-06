@@ -5,7 +5,10 @@ Bars: the 5-hour session, the weekly limit, per-model weekly limits (e.g. Fable)
 remaining credits, with their reset times. It reads the same usage endpoint Claude Code
 uses, with Claude Code's login (~/.claude/.credentials.json). It never refreshes the token
 itself (that would log Claude Code out): when the token expires, using Claude Code renews it
-and this picks the new one up.
+and this picks the new one up. It asks at most every 5 minutes, all open windows sharing one
+cached answer ($XDG_RUNTIME_DIR/clawd-usage.json), and backs off when rate limited. Session and weekly come live from Claude Code itself when
+it runs (the statusline saves them to $XDG_RUNTIME_DIR/clawd-statusline/<session>.json, the newest wins); the API is
+then only asked every 30 minutes, for the rest (Fable, credits).
 
 Clawd is awake (walking, blinking, sparkles) while a Claude Code session is working, and
 dozes, dimmed and still, when none is. Claude Code hooks (~/.claude/hooks/clawd-state.sh)
@@ -19,8 +22,13 @@ from datetime import datetime, timezone
 
 CREDENTIALS = os.path.expanduser("~/.claude/.credentials.json")
 URL = "https://api.anthropic.com/api/oauth/usage"
-POLL = 60                                     # s between fetches
+POLL = 300                                    # s between fetches (shared by all windows)
+MIN_REFRESH = 30                              # r refreshes only if older than this
 FPS = 12
+FEED = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "clawd-statusline")   # <session>.json each
+FEED_FRESH = 900                              # the statusline feed counts as live this long
+POLL_SLOW = 1800                              # API poll while the feed is live (Fable, credits)
+CACHE = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "clawd-usage.json")
 STATE_DIR = os.environ.get("CLAWD_STATE_DIR") or os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "clawd")
 
 # palette (README.md); the body is the theme's clawd_body
@@ -51,15 +59,56 @@ RST, BOLD = "\033[0m", "\033[1m"
 
 # ------------------------------------------------------------------------------ data
 class Usage:
+    """Plan usage, fetched at most every POLL s and shared by every clawd window through a
+    cache file; on HTTP 429 it backs off (Retry-After, else doubling up to 30 min) and keeps
+    showing the last numbers."""
+
     def __init__(self):
-        self.data, self.error, self.fetched = None, None, 0.0
+        self.data, self.plan, self.error, self.fetched = None, "", None, 0.0
+        self.retry_at, self.backoff = 0.0, 0.0
         self.busy = False
         self.wake = threading.Event()
+        try:                                         # the plan name, without a request
+            with open(CREDENTIALS) as f:
+                self.plan = json.load(f)["claudeAiOauth"].get("subscriptionType") or ""
+        except (OSError, ValueError, KeyError):
+            pass
+
+    def load(self):
+        try:
+            with open(CACHE) as f:
+                c = json.load(f)
+        except (OSError, ValueError):
+            return
+        if c.get("fetched", 0) >= self.fetched and c.get("data"):
+            self.data, self.plan, self.fetched = c["data"], c.get("plan") or self.plan, c["fetched"]
+            self.error = None
+        self.retry_at = max(self.retry_at, c.get("retry_at", 0))
+        if self.retry_at > time.time() and not self.error:
+            self.error = "rate limited"               # another window hit the limit
+        self.backoff = max(self.backoff, c.get("backoff", 0))
+
+    def save(self):
+        try:
+            tmp = CACHE + f".{os.getpid()}"
+            with open(tmp, "w") as f:
+                json.dump({"data": self.data, "plan": self.plan, "fetched": self.fetched,
+                           "retry_at": self.retry_at, "backoff": self.backoff}, f)
+            os.replace(tmp, CACHE)
+        except OSError:
+            pass
 
     def loop(self):
+        forced = False
         while True:
-            self.fetch()
-            self.wake.wait(POLL)
+            self.load()                              # another window may have fetched
+            now = time.time()
+            poll = POLL_SLOW if feed() else POLL
+            due = self.fetched + (MIN_REFRESH if forced else poll)
+            if now >= max(due, self.retry_at):
+                self.fetch()
+                self.save()
+            forced = self.wake.wait(max(5.0, min(poll, max(self.fetched + poll, self.retry_at) - time.time())))
             self.wake.clear()
 
     def fetch(self):
@@ -78,24 +127,36 @@ class Usage:
             with urllib.request.urlopen(req, timeout=10) as r:
                 self.data = json.load(r)
             self.plan = oauth.get("subscriptionType") or ""
-            self.error, self.fetched = None, time.time()
+            self.error, self.fetched, self.backoff = None, time.time(), 0.0
         except (PermissionError, KeyError):
             self.error = "login expired: open Claude Code to renew it"
         except urllib.error.HTTPError as e:
-            self.error = ("login expired: open Claude Code to renew it" if e.code == 401
-                          else f"usage endpoint: HTTP {e.code}")
+            if e.code == 429:
+                try:
+                    wait = float(e.headers.get("Retry-After") or 0)
+                except ValueError:
+                    wait = 0
+                self.backoff = min(1800.0, max(POLL, self.backoff * 2))
+                self.retry_at = time.time() + max(wait, self.backoff)
+                self.error = "rate limited"
+            else:
+                self.error = ("login expired: open Claude Code to renew it" if e.code == 401
+                              else f"usage endpoint: HTTP {e.code}")
         except (OSError, ValueError) as e:
             self.error = f"offline ({e.__class__.__name__})"
         finally:
             self.busy = False
 
 
+STALE_WORKING = 900                           # s without a hook event: not working any more
 _activity = (0.0, (0, 0))
 
 
 def activity():
     """(working, open) Claude Code sessions, from the hook files (sessions whose claude
-    process is gone are skipped); re-read at most every 0.3 s."""
+    process is gone are skipped); re-read at most every 0.3 s. A "working" that no hook has
+    touched for STALE_WORKING s counts as idle: an interrupt (Esc) or a session continued
+    under a new id mid-turn never sends Stop, and would keep Clawd awake forever."""
     global _activity
     if time.monotonic() - _activity[0] < 0.3:
         return _activity[1]
@@ -106,10 +167,15 @@ def activity():
         names = []
     for name in names:
         try:
-            with open(os.path.join(STATE_DIR, name)) as f:
+            path = os.path.join(STATE_DIR, name)
+            with open(path) as f:
                 state, pid = f.read().split()
+            if state == "working" and time.time() - os.path.getmtime(path) > STALE_WORKING:
+                state = "idle"
+            # a claude process: named "claude", or after its version (2.1.287) when started from
+            # the versioned binary — its executable tells
             with open(f"/proc/{int(pid)}/comm") as f:
-                if f.read().strip() != "claude":
+                if f.read().strip() != "claude" and "/claude/versions/" not in os.readlink(f"/proc/{int(pid)}/exe"):
                     continue
         except (OSError, ValueError):
             continue
@@ -117,6 +183,63 @@ def activity():
         working += state == "working"
     _activity = (time.monotonic(), (working, alive))
     return working, alive
+
+
+def feed():
+    """Session / weekly quotas the statusline saved from Claude Code (claude/statusline.sh),
+    as {"session": (percent, iso reset), "weekly_all": …}, or {} when none is fresh. Each
+    session writes its own file, with what it last heard: an idle session can hold old
+    numbers (from before a plan change…). The newest wins: the later 5-hour window, else the
+    higher usage (within a window it only grows)."""
+    best, now = None, time.time()
+    try:
+        names = os.listdir(FEED)
+    except OSError:
+        names = []
+    for name in names:
+        try:
+            with open(os.path.join(FEED, name)) as f:
+                d = json.load(f)
+        except (OSError, ValueError):
+            continue
+        rl = d.get("rate_limits") or {}
+        if now - d.get("at", 0) > FEED_FRESH or not rl.get("five_hour"):
+            continue
+        h = rl["five_hour"]
+        key = (h.get("resets_at") or 0, h.get("used_percentage") or 0)
+        if best is None or key > best[0]:
+            best = (key, d)
+    if not best:
+        return {}
+    d = best[1]
+    out = {"_at": d["at"]}
+    for key, kind in (("five_hour", "session"), ("seven_day", "weekly_all")):
+        v = d["rate_limits"].get(key)
+        if v and v.get("used_percentage") is not None:
+            iso = datetime.fromtimestamp(v["resets_at"], timezone.utc).isoformat() if v.get("resets_at") else None
+            out[kind] = (round(v["used_percentage"]), iso)
+    return out
+
+
+def merged(u):
+    """The usage to show: the API's, with session / weekly taken from the statusline feed
+    when that is newer (it updates live and costs no request)."""
+    f = feed()
+    d = dict(u.data or {})
+    limits = [dict(l) for l in d.get("limits") or []]
+    if f and f["_at"] > u.fetched:
+        for kind in ("session", "weekly_all"):
+            if kind not in f:
+                continue
+            pct, iso = f[kind]
+            l = next((l for l in limits if l.get("kind") == kind), None)
+            if l is None:
+                l = {"kind": kind}
+                limits.insert(0 if kind == "session" else len([x for x in limits if x.get("kind") == "session"]), l)
+            l["percent"], l["resets_at"] = pct, iso or l.get("resets_at")
+    if limits:
+        d["limits"] = limits
+    return d or None
 
 
 def when(iso, short_days=False):
@@ -287,8 +410,9 @@ def panel(u, t, width, working, alive):
         status = fg(EDGE) + "○ " + fg(DIM) + st
     out = [(BOLD + fg(BODY) + "CLAUDE" + RST + fg(DIM) + sub + "   " + status + RST,
             6 + len(sub) + 5 + len(st)), ("", 0)]
-    if u.data:
-        rs = rows(u.data)
+    data = merged(u)
+    if data:
+        rs = rows(data)
         lw = max(len(r[0]) for r in rs)
         vw = max(len(r[2]) for r in rs)
         ww = max(len(r[3]) for r in rs)
@@ -302,19 +426,29 @@ def panel(u, t, width, working, alive):
     elif not u.error:
         dots = "." * (int(t * 3) % 4)
         out += [(fg(DIM) + "fetching usage" + dots.ljust(3) + RST, 17), ("", 0)]
-    if u.error:
+    if u.error == "rate limited":
+        left = max(0, int(u.retry_at - time.time()))
+        txt = (("live · " if feed() else "")
+               + f"API rate limited, retry in {left // 60}m{left % 60:02d}s")
+        foot, fw = fg(DIM if feed() else YELLOW) + txt + RST, len(txt)
+    elif u.error:
         foot, fw = fg(YELLOW) + u.error + RST, len(u.error)
     else:
-        ago = int(time.time() - u.fetched) if u.fetched else 0
-        txt = "updating…" if u.busy else f"updated {ago // 60}m ago" if ago >= 60 else "updated just now"
+        ago = int(time.time() - u.fetched)
+        txt = ("updating…" if u.busy else "live from Claude Code" if not u.fetched and feed()
+               else "waiting for usage" if not u.fetched
+               else f"updated {ago // 60}m ago" if ago >= 60 else "updated just now")
         foot, fw = fg(DIM) + txt + RST, len(txt)
-    keys = "  ·  r refresh  ·  q quit"
+    keys = "  ·  r refresh · q quit"
+    if fw + len(keys) > width:                       # tight: the status matters more
+        keys = ""
     out.append((foot + fg(EDGE) + keys + RST, fw + len(keys)))
     return out
 
 
 def draw(u, t, cols, lines):
-    hot = u.data and any(r[1] >= 80 for r in rows(u.data) if r[0] == "session")
+    data = merged(u)
+    hot = data and any(r[1] >= 80 for r in rows(data) if r[0] == "session")
     working, alive = activity()
     sprite = render_sprite(t, "sleep" if not working else "hot" if hot else "")
     gap = 2

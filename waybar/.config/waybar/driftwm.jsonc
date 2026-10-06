@@ -8,7 +8,7 @@
   "custom/logo": {
     "format": "",
     "tooltip": false,
-    "on-click": "driftwm msg action zoom-to-fit"
+    "on-click": "~/.config/driftwm/desktop.sh overview"
   },
 
   // virtual desktops (driftwm has none built in): desktop.sh draws a pill per desktop that

@@ -11,9 +11,9 @@ fi
 
 PKGS=(
     # shared
-    autostart fish fontconfig fonts gtk rofi wallpapers kitty fastfetch btop cava yazi nowplaying claude clawd
+    autostart fish fontconfig fonts gtk rofi wallpapers kitty fastfetch btop cava yazi nowplaying claude clawd chromium
     # wayland / niri session
-    niri driftwm waybar mako swaylock
+    niri driftwm waybar mako swaylock wireplumber portal
     # x11 / i3 session (fallback)
     i3 picom polybar background xfce4
 )
@@ -27,6 +27,7 @@ stow --no-folding --adopt -t "$HOME" "${PKGS[@]}"
 # Emacs: dot-emacs is a submodule; its README.org is the literate config.
 git submodule update --init --recursive
 mkdir -p ~/.emacs.d
+ln -sfn "$PWD/dot-emacs/init.el"                  ~/.emacs.d/init.el
 ln -sfn "$PWD/dot-emacs/README.org"               ~/.emacs.d/config.org
 ln -sfn "$PWD/dot-emacs/camron-theme/camron-theme.el" ~/.emacs.d/camron-theme.el
 

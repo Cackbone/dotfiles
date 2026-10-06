@@ -2,6 +2,13 @@
 # Claude Code status line — synthwave pills, same look as the waybar modules.
 #  [ model ]  [ dir ]  [ branch ]  [ context meter ]
 in=$(cat)
+# hand the plan quotas Claude Code gives us to the clawd window (no extra API call there):
+# one file per session — sessions can see different numbers, and clawd shows the highest
+rl=$(jq -c '.rate_limits // empty' <<<"$in" 2>/dev/null)
+sid=$(jq -r '.session_id // "default"' <<<"$in" 2>/dev/null); [[ $sid =~ ^[A-Za-z0-9_-]+$ ]] || sid=default
+feed=${XDG_RUNTIME_DIR:-/tmp}/clawd-statusline; mkdir -p "$feed"
+[[ -n $rl ]] && printf '{"at":%s,"rate_limits":%s}\n' "$(date +%s)" "$rl" > "$feed/$sid.json.$$" \
+    && mv "$feed/$sid.json.$$" "$feed/$sid.json"
 q() { jq -r "$1 // empty" <<<"$in"; }
 
 fg() { printf '\e[38;2;%d;%d;%dm' "0x${1:1:2}" "0x${1:3:2}" "0x${1:5:2}"; }
@@ -59,6 +66,29 @@ meter_pill() {
 # plan quota (Pro/Max only): 5-hour session
 q5=$(q .rate_limits.five_hour.used_percentage);  q5=${q5%.*}
 r5=$(q .rate_limits.five_hour.resets_at)
+
+# Inside Emacs (claude-code-ide, in an eat buffer): only the model pill here. The folder and
+# branch are on screen already, and the context and session bars sit in the Claude window's
+# mode line instead, from a file named after this Claude's process (Emacs knows each Claude
+# buffer's process): $XDG_RUNTIME_DIR/claude-emacs/<pid>.json
+if [[ -n ${INSIDE_EMACS:-} ]]; then
+    p=$$ cpid=""
+    for _ in 1 2 3 4 5 6; do                             # up to the claude process
+        p=$(awk '{print $4}' "/proc/$p/stat" 2>/dev/null) || break
+        (( p > 1 )) || break
+        if [[ $(cat "/proc/$p/comm" 2>/dev/null) == claude || $(readlink "/proc/$p/exe" 2>/dev/null) == */claude/versions/* ]]; then
+            cpid=$p; break
+        fi
+    done
+    if [[ -n $cpid ]]; then
+        d=${XDG_RUNTIME_DIR:-/tmp}/claude-emacs; mkdir -p "$d"
+        reset=""; [[ -n $r5 ]] && reset=$(date -d "@$r5" +%H:%M 2>/dev/null)
+        printf '{"ctx":%s,"q5":%s,"reset":"%s"}\n' "$pct" "${q5:-null}" "$reset" > "$d/$cpid.json.$$" \
+            && mv "$d/$cpid.json.$$" "$d/$cpid.json"
+    fi
+    pill "$MAG" "$NAVY" "$bold$(printf '')  ${model}"; echo
+    exit 0
+fi
 
 # Pills are laid out like wrapping text: each goes on the current line if it fits in the
 # terminal width Claude Code passes as $COLUMNS, otherwise it starts a new line.

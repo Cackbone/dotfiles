@@ -24,7 +24,10 @@ def main():
         if not state:
             continue
         wins = {w["id"]: w for w in state["windows"]}
-        if last and last[0] not in wins:                   # the focused window just closed
+        # a window going fullscreen or pinned leaves `windows` for the screen-space
+        # inventories: it's still open (refocusing would pan, and panning ends fullscreen)
+        alive = set(wins) | {w["id"] for w in state.get("fullscreen", []) + state.get("pinned", [])}
+        if last and last[0] not in alive:                  # the focused window just closed
             wid, (x, y), here = last
             cand = [w for w in state["windows"] if not w.get("is_widget") and not w.get("suspended")
                     and nav.area(*w["position"]) == here]
@@ -42,7 +45,7 @@ def main():
                 last = None
                 continue
         f = next((w for w in state["windows"] if w["is_focused"]), None)
-        last = (f["id"], f["position"], nav.area(*f["position"])) if f else last if last and last[0] in wins else None
+        last = (f["id"], f["position"], nav.area(*f["position"])) if f else last if last and last[0] in alive else None
     sys.exit(p.wait())
 
 

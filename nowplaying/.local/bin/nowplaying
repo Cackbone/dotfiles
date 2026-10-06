@@ -13,7 +13,8 @@
 #
 # Smoothness: one query per refresh, every frame built in memory and written at once (no
 # clear-then-redraw flicker), keys polled every 0.1 s with an immediate redraw.
-# State source: spotify_player's own `get key playback` (fresh within ~0.25 s) when it runs;
+# State source: spotify_player's own `get key playback`, shared through spotify-state (fresh
+# within ~0.4 s) when it runs;
 # its MPRIS state lags 2-3 s, so MPRIS (playerctl) is only the fallback for other players.
 # A key press updates the icon at once; the position advances on the local clock.
 set -u
@@ -33,7 +34,7 @@ if command -v cava >/dev/null; then
     cat > "$CACHE/cava.cfg" <<'CFG'
 [general]
 bars = 4
-framerate = 15
+framerate = 30
 [input]
 method = pulse
 source = auto
@@ -66,6 +67,9 @@ eq_icon() {                                      # → REPLY: 4 coloured bars
 }
 
 pc() { playerctl -p "$PLAYERS" "$@" 2>/dev/null; }
+# keys: music-ctl (it wakes Spotify up after a long pause, which takes a few seconds), in
+# the background so the window never freezes
+ctl() { "$HOME/.local/bin/music-ctl" "$@" >/dev/null 2>&1 & }
 nowms() { local t=$EPOCHREALTIME; echo $(( ${t%.*} * 1000 + 10#${t#*.} / 1000 )); }
 mmss() { printf '%d:%02d' $(( $1 / 60 )) $(( $1 % 60 )); }
 
@@ -82,6 +86,8 @@ cover_file() {                                   # artUrl → local file (downlo
 
 # --- state, refreshed from MPRIS; position interpolated locally while playing ---
 status="" title="" artist="" album="" len=0 art=""
+dev_icon="" dev_name=""                          # the device playing, when it isn't this computer
+cell_ratio=200 aspect_for=""                     # cell height / width × 100, and for which size
 pos_ms=0 pos_at=0                                # last known position and when we knew it
 hold_until=0 held=""                             # optimistic status after a key press
 scrub=0 scrub_ms=0 scrub_resume=0 scrub_due=0      # arrow-key scrubbing (see header)
@@ -91,14 +97,18 @@ seek_lock=0                                      # after a seek: ignore stale po
 poll() {
     local s p t a al l u n json
     # spotify_player: ask it directly (accurate); anything else: MPRIS
-    if pgrep -x spotify_player >/dev/null && json=$(timeout 1 spotify_player get key playback 2>/dev/null) \
-            && [[ $json == "{"* ]] && jq -e '.item' <<<"$json" >/dev/null 2>&1; then
-        IFS=$'\t' read -r s p t a al l u < <(jq -r '[
+    local dn
+    if json=$("$HOME/.local/bin/spotify-state") && [[ $json == "{"* ]] \
+            && IFS=$'\t' read -r s p t a al l u dn < <(jq -r 'select(.item) | [
             (if .is_playing then "Playing" else "Paused" end), (.progress_ms * 1000),
             .item.name, ([.item.artists[]?.name] | join(", ")), (.item.album.name // .item.show.name // ""),
-            (.item.duration_ms * 1000), (.item.album.images[0].url // .item.images[0].url // "")
-        ] | map(tostring) | join("\t")' <<<"$json")
+            (.item.duration_ms * 1000), (.item.album.images[0].url // .item.images[0].url // ""),
+            (.device.name // "")
+        ] | map(tostring) | join("\t")' <<<"$json") && [[ -n $s ]]; then
+        dev_icon="" dev_name=""                  # playing on another device: its icon and name
+        [[ -n $dn && $dn != spotify-player ]] && IFS=$'\t' read -r dev_icon dev_name < <("$HOME/.local/bin/spotify-state" --device)
     else
+        dev_icon="" dev_name=""
         IFS=$'\t' read -r s p t a al l u < <(pc metadata --format \
             $'{{status}}\t{{position}}\t{{title}}\t{{artist}}\t{{album}}\t{{mpris:length}}\t{{mpris:artUrl}}')
     fi
@@ -142,14 +152,22 @@ make_grad() {
 last_art="" last_size="" bar_w=0
 draw() {
     local rows cols f img_w img_h x w frame=""
-    read -r rows cols < <(stty size </dev/tty)
+    [[ -n $term_size ]] || term_size=$(stty size </dev/tty)   # (asked again after a resize)
+    read -r rows cols <<<"$term_size"
     if [[ -z $status ]]; then
         [[ $last_art != none ]] && { printf '\e[H\e[2J'; kitten icat --clear 2>/dev/null; last_art=none; }
         printf '\e[2;3H%sNothing playing%s  %s(start spotify_player --daemon or Spotify)%s\e[K' "$DIM" "$RST" "$FAINT" "$RST"
         return
     fi
     img_h=$(( rows - 2 < 12 ? rows - 2 : 12 )); (( img_h < 3 )) && img_h=0
-    img_w=$(( img_h * 2 + 1 ))                   # cells are ~2x taller than wide
+    # a square cover img_h rows tall: as many columns as the cells' height / width says (asked
+    # once per window size), so it fills its rows and its bottom edge is a row's bottom
+    if [[ "$rows x $cols" != "$aspect_for" ]]; then
+        local px; px=$(kitten icat --print-window-size 2>/dev/null </dev/tty)
+        [[ $px =~ ^([0-9]+)x([0-9]+)$ ]] && cell_ratio=$(( BASH_REMATCH[2] * cols * 100 / (rows * BASH_REMATCH[1]) ))
+        aspect_for="$rows x $cols"
+    fi
+    img_w=$(( (img_h * cell_ratio + 99) / 100 ))
     (( cols < 50 )) && img_h=0 img_w=0
     if [[ $art != "$last_art" || "$rows x $cols" != "$last_size" ]]; then
         printf '\e[H\e[2J'; kitten icat --clear 2>/dev/null
@@ -161,7 +179,8 @@ draw() {
     x=$(( img_w > 0 ? img_w + 4 : 2 )); w=$(( cols - x - 2 ))
     fit() { local s=$1; (( ${#s} > w )) && s="${s:0:w-1}…"; REPLY=$s; }
 
-    local icon=$PAUSE; [[ $status == Playing ]] && { eq_icon; icon=$REPLY; }
+    local icon=$PAUSE                            # playing: the equalizer, or the device it plays on
+    if [[ $status == Playing ]]; then if [[ -n $dev_name ]]; then icon=$dev_icon; else eq_icon; icon=$REPLY; fi; fi
     local pos; pos=$(position)
     local times=" $(mmss "$pos") / $(mmss "$len")"
     local bar=$(( w - ${#times} )); (( bar < 5 )) && bar=5
@@ -173,13 +192,28 @@ draw() {
 
     # whole frame in one string, one write: overwrite, then clear the rest of each line
     local line
-    fit "$title";  printf -v line '\e[2;%dH%s%s%s%s  %s%s%s\e[K' "$x" "$BOLD" "$ICE" "$REPLY" "$RST" "$MAG" "$icon" "$RST"; frame+=$line
+    # the icon in a fixed spot, its right edge level with the end of the time; the title cut
+    # before it (eq: 4 cells, pause / device: 1)
+    local iw=1; [[ $status == Playing && -z $dev_name ]] && iw=4
+    local tw=$(( w - iw - 2 )) t=$title; (( ${#t} > tw )) && t="${t:0:tw-1}…"
+    printf -v line '\e[2;%dH%s%s%s%s\e[K\e[2;%dH%s%s%s' "$x" "$BOLD" "$ICE" "$t" "$RST" $(( x + w - iw )) "$MAG" "$icon" "$RST"; frame+=$line
     fit "$artist"; printf -v line '\e[3;%dH%s%s%s\e[K' "$x" "$MAG" "$REPLY" "$RST"; frame+=$line
     fit "$album";  printf -v line '\e[4;%dH%s%s%s\e[K' "$x" "$DIM" "$REPLY" "$RST"; frame+=$line
     printf -v line '\e[6;%dH%s%s%s%s\e[K' "$x" "$progress" "$DIM" "$times" "$RST"; frame+=$line
     if (( rows >= 9 )); then
         fit "space play/pause · n/p next/prev · ←/→ seek · +/- vol · q quit"
         printf -v line '\e[8;%dH%s%s%s\e[K' "$x" "$FAINT" "$REPLY" "$RST"; frame+=$line
+    fi
+    # where it plays, if not here: right-aligned with the progress bar, level with the bottom
+    # of the cover (rows 2 to img_h + 1), never higher than the row under the text
+    local dev_row=$(( img_h + 1 > 9 ? img_h + 1 : 9 ))
+    if (( dev_row <= rows )); then
+        printf -v line '\e[%d;%dH\e[K' "$dev_row" "$x"; frame+=$line
+        if [[ -n $dev_name ]]; then
+            local dev="$dev_icon  $dev_name"
+            (( ${#dev} > w )) && dev="${dev:0:w-1}…"
+            printf -v line '\e[%d;%dH%s%s%s' "$dev_row" $(( cols - ${#dev} - 2 )) "$ICE" "$dev" "$RST"; frame+=$line
+        fi
     fi
     printf '%s' "$frame"
 }
@@ -188,14 +222,14 @@ act() {                                          # run a key's command, update t
     local n; n=$(nowms)
     case $1 in
         toggle) if [[ $status == Playing ]]; then pos_ms=$(( pos_ms + n - pos_at )); held=Paused; else held=Playing; fi
-                pos_at=$n; status=$held; hold_until=$(( n + 800 )); pc play-pause ;;
-        next)   pc next ;;
-        prev)   pc previous ;;
+                pos_at=$n; status=$held; hold_until=$(( n + 800 )); ctl play-pause ;;
+        next)   ctl next ;;
+        prev)   ctl previous ;;
         fwd|back)
                 if (( ! scrub )); then              # first arrow: pause, start from here
                     scrub=1; scrub_ms=$pos_ms
                     [[ $status == Playing ]] && scrub_ms=$(( pos_ms + n - pos_at ))
-                    if [[ $status == Playing ]]; then scrub_resume=1; pc pause; else scrub_resume=0; fi
+                    if [[ $status == Playing ]]; then scrub_resume=1; ctl pause; else scrub_resume=0; fi
                 fi
                 [[ $1 == fwd ]] && scrub_ms=$(( scrub_ms + 5000 )) || scrub_ms=$(( scrub_ms - 5000 ))
                 (( scrub_ms < 0 )) && scrub_ms=0
@@ -203,8 +237,8 @@ act() {                                          # run a key's command, update t
                 scrub_due=$(( n + SCRUB_WAIT ))
                 status=Paused held=Paused hold_until=$(( scrub_due + 800 ))
                 pos_ms=$scrub_ms pos_at=$n ;;
-        vol+)   pc volume 0.05+ ;;
-        vol-)   pc volume 0.05- ;;
+        vol+)   ctl volume 0.05+ ;;
+        vol-)   ctl volume 0.05- ;;
     esac
     draw
 }
@@ -212,13 +246,19 @@ act() {                                          # run a key's command, update t
 cleanup() { [[ -n ${CAVA_PID:-} ]] && kill "$CAVA_PID" 2>/dev/null; kitten icat --clear 2>/dev/null; printf '\e[?25h\e[H\e[2J'; stty sane 2>/dev/null; }
 trap cleanup EXIT
 trap 'exit 0' TERM HUP INT                       # closing the window: still run cleanup (stops cava)
-trap 'last_size=""' WINCH                        # resized: redraw everything
+term_size=""
+trap 'last_size="" term_size=""' WINCH            # resized: redraw everything
 printf '\e[?25l\e[H\e[2J'                        # hide the cursor
 
 commit_scrub() {                                 # jump once, resume if it was playing
     local n; n=$(nowms)
-    pc position "$(( scrub_ms / 1000 )).$(printf '%03d' $(( scrub_ms % 1000 )))"
-    if (( scrub_resume )); then pc play; status=Playing held=Playing; else status=Paused held=Paused; fi
+    local to; to="$(( scrub_ms / 1000 )).$(printf '%03d' $(( scrub_ms % 1000 )))"
+    if (( scrub_resume )); then
+        { "$HOME/.local/bin/music-ctl" position "$to"; "$HOME/.local/bin/music-ctl" play; } >/dev/null 2>&1 &
+        status=Playing held=Playing
+    else
+        ctl position "$to"; status=Paused held=Paused
+    fi
     hold_until=$(( n + 800 )); pos_ms=$scrub_ms pos_at=$n; scrub=0; seek_lock=$(( n + 4000 ))
 }
 
@@ -226,9 +266,9 @@ last_poll=0
 while :; do
     n=$(nowms)
     (( scrub && n >= scrub_due )) && commit_scrub
-    if (( n - last_poll >= 500 )); then poll; last_poll=$n; fi
+    if (( n - last_poll >= 1000 )); then poll; last_poll=$n; fi
     draw
-    IFS= read -rsn1 -t 0.1 k || continue
+    IFS= read -rsn1 -t 0.033 k || continue
     if [[ $k == "$ESC" ]]; then IFS= read -rsn2 -t 0.02 rest || true; k+=$rest; fi
     case $k in
         ' ')          act toggle ;;

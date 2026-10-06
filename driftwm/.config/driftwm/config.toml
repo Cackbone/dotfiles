@@ -11,14 +11,16 @@ window_placement = "auto"
 
 autostart = [
     # Spotify in the background (Connect device + MPRIS): control it with nowplaying (Mod+F7),
-    # the bar's music pill and the media keys
-    "spotify_player --daemon",
+    # the bar's music pill and the media keys. Its log skips the routine "handled a request"
+    # lines (the bar asks every 0.4 s)
+    "RUST_LOG=spotify_player=info,librespot=info,spotify_player::cli=warn spotify_player --daemon",
     "waybar -c ~/.config/waybar/driftwm.jsonc",
     "mako",
     "swayidle -w timeout 600 'swaylock -f' before-sleep 'swaylock -f'",
     "wl-paste --watch cliphist store",
-    # every screen is its own canvas: put each camera on its own area
-    "~/.config/driftwm/arrange-cameras.sh",
+    # every screen is its own canvas: put each camera on its own area; then, when the big
+    # screen is connected, open the saved showcase layout on it (showcase.py; Mod+Shift+F8 saves)
+    "~/.config/driftwm/arrange-cameras.sh && ~/.config/driftwm/showcase.py --login",
     # after closing a window, focus the closest one on the same screen
     "~/.config/driftwm/refocus.py",
     # a screen pulled into another screen's area (Alt-Tab, focus requests…) goes back, and the
@@ -108,7 +110,8 @@ position = [4480, 180]
 "mod+f3" = "exec thunar"
 "mod+f5" = "exec emacs"
 "mod+f7" = "exec kitty --class nowplaying --title nowplaying nowplaying"
-"mod+f8" = "spawn ~/.config/driftwm/showcase.py"          # lay out the showcase on the big screen
+"mod+f8" = "spawn ~/.config/driftwm/showcase.py"          # the saved showcase layout, back on the big screen
+"mod+shift+f8" = "spawn ~/.config/driftwm/showcase.py save"   # save the big screen's windows as that layout
 "mod+f9" = "exec kitty --class clawd --title \"Claude usage\" clawd"   # Claude quotas + Clawd
 "mod+alt+l" = "spawn swaylock"
 "mod+shift+a" = "close-window"
@@ -166,11 +169,15 @@ position = [4480, 180]
 "mod+shift+ctrl+up"    = "send-to-output up"
 "mod+shift+ctrl+down"  = "send-to-output down"
 
-# --- hardware keys (pactl: there's no wpctl on this system)
+# --- hardware keys (pactl: sound is PulseAudio; PipeWire only carries video here)
 "XF86AudioRaiseVolume" = "spawn pactl set-sink-volume @DEFAULT_SINK@ +5%"
 "XF86AudioLowerVolume" = "spawn pactl set-sink-volume @DEFAULT_SINK@ -5%"
 "XF86AudioMute" = "spawn pactl set-sink-mute @DEFAULT_SINK@ toggle"
 "XF86AudioMicMute" = "spawn pactl set-source-mute @DEFAULT_SOURCE@ toggle"
+# music: music-ctl = playerctl that also wakes Spotify up after a long pause
+"XF86AudioPlay" = "spawn ~/.local/bin/music-ctl play-pause"
+"XF86AudioNext" = "spawn ~/.local/bin/music-ctl next"
+"XF86AudioPrev" = "spawn ~/.local/bin/music-ctl previous"
 
 # --- screenshots (grim + slurp): region → clipboard + ~/Pictures/Screenshots
 "Print" = "spawn mkdir -p ~/Pictures/Screenshots && grim -g \"$(slurp -d)\" - | tee ~/Pictures/Screenshots/$(date +%F_%H-%M-%S).png | wl-copy"
@@ -214,4 +221,4 @@ size = [760, 300]
 # the Claude usage window (Mod+F9, clawd)
 [[window_rules]]
 app_id = "clawd"
-size = [1000, 340]
+size = [820, 300]

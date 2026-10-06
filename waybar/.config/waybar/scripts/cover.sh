@@ -6,7 +6,7 @@
 set -u
 CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/waybar-covers; mkdir -p "$CACHE"
 url="" tip=""
-if pgrep -x spotify_player >/dev/null && json=$(timeout 1 spotify_player get key playback 2>/dev/null) \
+if pgrep -x spotify_player >/dev/null && json=$("$HOME/.local/bin/spotify-state") \
         && [[ $json == "{"* ]] && jq -e '.item' <<<"$json" >/dev/null 2>&1; then
     url=$(jq -r '.item.album.images[-1].url // .item.album.images[0].url // .item.images[0].url // ""' <<<"$json")
     tip=$(jq -r '"\(.item.album.name // "")"' <<<"$json")

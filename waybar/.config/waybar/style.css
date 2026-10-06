@@ -113,6 +113,7 @@ window#waybar.empty #window { color: @dim; }
   margin: 5px 0;
 }
 #custom-eq.paused { color: @dim; }
+#custom-eq.remote { color: @ice; }          /* playing on another device: its icon */
 /* right end: the text */
 #music #custom-music {
   border-left-width: 0;

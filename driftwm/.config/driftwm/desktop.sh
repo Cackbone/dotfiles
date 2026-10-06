@@ -35,6 +35,26 @@ get() { cat "$(f "$1")" 2>/dev/null || echo "$2"; }
 desk_of_x() { awk -v x="$1" -v d=$DX 'BEGIN { printf "%d", int((x + d / 2) / d + (x + d / 2 < 0 ? -1 : 0)) + 1 }'; }
 refresh_bar() { pkill -RTMIN+8 -x waybar 2>/dev/null; }
 
+# point this screen's view at canvas point ($1, $2) with zoom $3. Camera first, wait until
+# it has arrived, then the zoom: changing the zoom while the (animated) pan is in flight
+# stops the pan halfway; and zooming pivots slightly off-centre, so once it has settled the
+# camera goes exactly back
+view() {
+    local tx=$1 ty=$2 z=$3 i
+    driftwm msg camera "$tx" "$ty" >/dev/null
+    for i in $(seq 100); do
+        driftwm msg --json camera | jq -e --argjson x "$tx" --argjson y "$ty" \
+            '.Ok.Camera | ((.x - $x) | fabs) < 1 and ((.y - $y) | fabs) < 1' >/dev/null && break
+        sleep 0.02
+    done
+    driftwm msg zoom "$z" >/dev/null
+    for i in $(seq 100); do
+        driftwm msg --json zoom | jq -e --argjson z "$z" '((.Ok.Zoom - $z) | fabs) < 0.001' >/dev/null && break
+        sleep 0.02
+    done
+    driftwm msg camera "$tx" "$ty" >/dev/null
+}
+
 # the current desktop is wherever the screen's camera is (so taskbar clicks, Alt-Tab etc. stay in sync)
 cur_of() { desk_of_x "$(jq -r --arg o "$1" '.outputs[] | select(.name == $o) | .camera[0]' <<<"$state")"; }
 
@@ -47,24 +67,10 @@ go() {
     echo "$cur" > "$(f "$out.prev")"
     rm -f "$(f "$out.overview")"
     read -r rx ry rz <<<"$(get "$out.cam$n" "0 0 1")"
-    # camera first, wait until it has arrived, then the zoom: changing the zoom while the
-    # (animated) pan is in flight stops the pan halfway
-    local tx ty i
+    local tx ty
     tx=$(awk -v r="$rx" -v d=$(( (n - 1) * DX )) 'BEGIN{printf "%d", r + d}')
     ty=$(awk -v r="$ry" -v d=$(( -$(sidx "$out") * DY )) 'BEGIN{printf "%d", r + d}')
-    driftwm msg camera "$tx" "$ty" >/dev/null
-    for i in $(seq 100); do
-        driftwm msg --json camera | jq -e --argjson x "$tx" --argjson y "$ty" \
-            '.Ok.Camera | ((.x - $x) | fabs) < 1 and ((.y - $y) | fabs) < 1' >/dev/null && break
-        sleep 0.02
-    done
-    driftwm msg zoom "${rz:-1}" >/dev/null                  # each desktop keeps its own zoom
-    # zooming pivots slightly off-centre: once it has settled, put the camera exactly back
-    for i in $(seq 100); do
-        driftwm msg --json zoom | jq -e --argjson z "${rz:-1}" '((.Ok.Zoom - $z) | fabs) < 0.001' >/dev/null && break
-        sleep 0.02
-    done
-    driftwm msg camera "$tx" "$ty" >/dev/null
+    view "$tx" "$ty" "${rz:-1}"                             # each desktop keeps its own zoom
     refresh_bar
 }
 
@@ -83,7 +89,7 @@ overview() {
     ov=$(f "$out.overview")
     if [[ -f $ov ]]; then                                   # second press: back to where we were
         read -r x y z < "$ov"; rm -f "$ov"
-        driftwm msg zoom "$z" >/dev/null; driftwm msg camera "$x" "$y" >/dev/null; return
+        view "$x" "$y" "$z"; return
     fi
     cur=$(cur_of "$out"); lo=$(( (cur - 1) * DX - DX / 2 )); hi=$(( (cur - 1) * DX + DX / 2 ))
     ylo=$(( -$(sidx "$out") * DY - DY / 2 )); yhi=$(( -$(sidx "$out") * DY + DY / 2 ))
@@ -98,9 +104,10 @@ overview() {
     read -r x0 x1 y0 y1 <<<"$box"
     read -r ow oh <<<"$(jq -r '.outputs[] | select(.active) | .size | "\(.[0]) \(.[1])"' <<<"$state")"
     echo "$cx $cy $(jq -r '.zoom' <<<"$state")" > "$ov"
-    driftwm msg zoom "$(awk -v a="$x0" -v b="$x1" -v c="$y0" -v d="$y1" -v w="$ow" -v h="$oh" \
-        'BEGIN { p = 160; zx = (w - p) / (b - a); zy = (h - p) / (d - c); z = zx < zy ? zx : zy; print (z > 1 ? 1 : z) }')" >/dev/null
-    driftwm msg camera "$(awk -v a="$x0" -v b="$x1" 'BEGIN{print (a + b) / 2}')" "$(awk -v c="$y0" -v d="$y1" 'BEGIN{print (c + d) / 2}')" >/dev/null
+    view "$(awk -v a="$x0" -v b="$x1" 'BEGIN{printf "%.0f", (a + b) / 2}')" \
+         "$(awk -v c="$y0" -v d="$y1" 'BEGIN{printf "%.0f", (c + d) / 2}')" \
+         "$(awk -v a="$x0" -v b="$x1" -v c="$y0" -v d="$y1" -v w="$ow" -v h="$oh" \
+            'BEGIN { p = 160; zx = (w - p) / (b - a); zy = (h - p) / (d - c); z = zx < zy ? zx : zy; print (z > 1 ? 1 : z) }')"
 }
 
 # grouping classes for button $1 of $2: "solo", or "grouped" plus "first"/"last" at the ends

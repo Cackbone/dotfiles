@@ -10,7 +10,9 @@ id=$(jq -r '.session_id // empty' 2>/dev/null)
 if [[ $1 == end ]]; then rm -f "$dir/$id"; exit 0; fi
 pid=$PPID p=$PPID
 for _ in 1 2 3 4 5; do                                   # the claude process above us
-    [[ $(cat /proc/$p/comm 2>/dev/null) == claude ]] && { pid=$p; break; }
+    # (the process is named "claude", or after its version — 2.1.287 — when started from the
+    # versioned binary: its executable tells)
+    [[ $(cat /proc/$p/comm 2>/dev/null) == claude || $(readlink /proc/$p/exe 2>/dev/null) == */claude/versions/* ]] && { pid=$p; break; }
     p=$(awk '{print $4}' /proc/$p/stat 2>/dev/null) || break
     (( p > 1 )) || break
 done

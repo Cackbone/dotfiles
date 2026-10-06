@@ -45,7 +45,7 @@
     "size": 26,
     "interval": 10,
     "signal": 9,
-    "on-click": "playerctl -p spotify_player,spotify,%any play-pause",
+    "on-click": "~/.local/bin/music-ctl play-pause",
     "on-click-right": "kitty --class nowplaying --title nowplaying nowplaying"
   },
 
@@ -54,7 +54,7 @@
     "exec": "~/.config/waybar/scripts/eq.sh",
     "return-type": "json",
     "escape": false,
-    "on-click": "playerctl -p spotify_player,spotify,%any play-pause",
+    "on-click": "~/.local/bin/music-ctl play-pause",
     "on-click-right": "kitty --class nowplaying --title nowplaying nowplaying"
   },
 
@@ -63,10 +63,10 @@
     "return-type": "json",
     "escape": false,
     "justify": "left", "align": 0,
-    "on-click": "playerctl -p spotify_player,spotify,%any play-pause",
+    "on-click": "~/.local/bin/music-ctl play-pause",
     "on-click-right": "kitty --class nowplaying --title nowplaying nowplaying",
-    "on-scroll-up": "playerctl -p spotify_player,spotify,%any next",
-    "on-scroll-down": "playerctl -p spotify_player,spotify,%any previous"
+    "on-scroll-up": "~/.local/bin/music-ctl next",
+    "on-scroll-down": "~/.local/bin/music-ctl previous"
   },
 
   "network": {

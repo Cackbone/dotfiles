@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# spotify_player's current playback (JSON), shared by everything that shows it: the bar's
+# music pill, equalizer and cover on every screen, and nowplaying. They used to ask the
+# daemon themselves, a dozen times a second together (each request is a Web API call, and
+# a line in its log); now one asks at most once a second and the others read the answer.
+#   spotify-state           an answer at most 1 s old
+#   spotify-state --fresh   ask the daemon now
+#   spotify-state --ready   exit status only: is the player up and taking commands?
+#   spotify-state --device  "<icon>\t<name>" of the device playing when it isn't this computer
+#                           (phone, another computer…), else nothing
+# Output: the playback JSON, or nothing when nothing is playing (exit 0). Exit 1: no player;
+# exit 2: no answer (Spotify rate limiting, daemon busy) — then nobody asks again for 10 s:
+# the daemon holds rate-limited requests and retries them, so asking more piles them up and
+# keeps the limit hit (play/pause then gets dropped).
+set -u
+C=${XDG_RUNTIME_DIR:-/tmp}/spotify-playback.json        # "!" = the last request failed
+MAX_AGE=1000                                             # ms
+BACKOFF=10                                               # s
+PORT=8080                                                # its CLI socket (app.toml client_port)
+LOCAL=spotify-player                                     # its own Connect device (app.toml device.name)
+# Only ask a player (daemon or TUI) that has its CLI socket: with nobody listening, a
+# `spotify_player get …` starts a whole Spotify client of its own to answer and takes the
+# port, so the real daemon, if it's just starting, can't get it.
+owner=$(ss -Hulpn "sport = :$PORT" 2>/dev/null | grep -o 'pid=[0-9]*' | head -1)
+[[ -n $owner ]] || exit 1
+mapfile -d '' args 2>/dev/null < "/proc/${owner#pid=}/cmdline" || exit 1
+[[ ${args[0]##*/} == spotify_player ]] || exit 1
+[[ ${args[1]:-} =~ ^(get|playback|connect|like|authenticate|playlist|generate|search|features|lyrics)$ ]] && exit 1
+[[ ${1:-} == --ready ]] && exit 0
+if [[ ${1:-} == --device ]]; then
+    json=$("$0") || exit $?
+    IFS=$'\t' read -r type name < <(jq -r '.device // empty | [.type, .name] | join("\t")' <<<"$json" 2>/dev/null)
+    [[ -n ${name:-} && $name != "$LOCAL" ]] || exit 0
+    case ${type,,} in                                    # Spotify's device types
+        smartphone)                        icon=$'\uf10b' ;;
+        tablet)                            icon=$'\uf10a' ;;
+        computer)                          icon=$'\uf109' ;;
+        tv|castvideo|stb)                  icon=$'\uf26c' ;;
+        speaker|avr|castaudio|audiodongle) icon=$'\U000f04c3' ;;
+        gameconsole)                       icon=$'\uf11b' ;;
+        automobile)                        icon=$'\uf1b9' ;;
+        *)                                 icon=$'\uf1bc' ;;   # Spotify logo
+    esac
+    printf '%s\t%s\n' "$icon" "$name"
+    exit 0
+fi
+
+ms() { local t=${1/,/.}; echo $(( ${t%.*} * 1000 + 10#${t#*.} / ${2:-1} )); }
+# answer from the cache when it's recent enough (always, while backing off: its time is
+# then in the future)
+limit=$MAX_AGE; [[ ${1:-} == --fresh ]] && limit=0
+serve() {
+    local m c; m=$(stat -c %.3Y "$C" 2>/dev/null) || return 1
+    (( $(ms "$EPOCHREALTIME" 1000) - $(ms "$m") < limit )) || return 1
+    c=$(<"$C"); [[ $c == "!" ]] && exit 2
+    printf '%s' "$c"; exit 0
+}
+serve
+exec 9>"$C.lock"
+if [[ ${1:-} == --fresh ]]; then flock 9                 # one request at a time
+elif ! flock -n 9; then                                  # someone is asking: use what we have
+    c=$(cat "$C" 2>/dev/null); [[ $c == "!" ]] && exit 2
+    printf '%s' "$c"; exit 0
+fi
+serve
+json=$(timeout 1 spotify_player get key playback 2>/dev/null) || json=""
+case $json in
+    "{"*) ;;                                             # the playback
+    null) json="" ;;                                     # nothing playing
+    *)    printf '!' > "$C.tmp" && mv -f "$C.tmp" "$C" && touch -d "+$BACKOFF seconds" "$C"
+          exit 2 ;;                                      # no (usable) answer: back off
+esac
+printf '%s' "$json" > "$C.tmp" && mv -f "$C.tmp" "$C"
+printf '%s' "$json"

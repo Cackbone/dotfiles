@@ -12,11 +12,12 @@ esc() { local s=${1//&/&amp;}; s=${s//</&lt;}; s=${s//>/&gt;}; REPLY=$s; }   # p
 cut_to() { local s=$1; (( ${#s} > $2 )) && s="${s:0:$2-1}…"; REPLY=$s; }
 title="" last=""
 while :; do
-    s="" t="" a=""
-    if pgrep -x spotify_player >/dev/null && json=$(timeout 1 spotify_player get key playback 2>/dev/null) \
+    s="" t="" a="" dev=""
+    if pgrep -x spotify_player >/dev/null && json=$("$HOME/.local/bin/spotify-state") \
             && [[ $json == "{"* ]] && jq -e '.item' <<<"$json" >/dev/null 2>&1; then
         IFS=$'\t' read -r s t a < <(jq -r '[(if .is_playing then "Playing" else "Paused" end),
             .item.name, ([.item.artists[]?.name] | join(", "))] | join("\t")' <<<"$json")
+        dev=$("$HOME/.local/bin/spotify-state" --device | cut -f2)   # playing on another device
     else
         IFS=$'\t' read -r s t a < <(playerctl -p "$PLAYERS" metadata --format $'{{status}}\t{{title}}\t{{artist}}' 2>/dev/null)
     fi
@@ -26,7 +27,7 @@ while :; do
     else
         cut_to "${t:-}" $TITLE_LEN; esc "$REPLY"; et=$REPLY
         cut_to "${a:-}" $ARTIST_LEN; esc "$REPLY"; ea=$REPLY
-        esc "${a:-} - ${t:-}"; tip=$REPLY
+        esc "${a:-} - ${t:-}${dev:+ · on $dev}"; tip=$REPLY
         cls=playing; [[ $s == Playing ]] || cls=paused
         out=$(jq -cn --arg text "<b>$et</b>"$'\n'"<span size='smaller' foreground='#8b8bc7'>$ea</span>" \
                      --arg cls "$cls" --arg tip "$tip" '{text: $text, class: $cls, tooltip: $tip}')
