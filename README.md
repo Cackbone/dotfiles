@@ -19,9 +19,10 @@ so editing the live config *is* editing the repo; `git status` shows what change
 |---|---|
 | `niri` | compositor, keybinds (AZERTY, same jklm as i3), outputs, window rules |
 | `driftwm` | 2D canvas session (AUR `driftwm`): same keys, colors, bar and wallpaper as niri; `driftwm --check-config`. Each screen is its own canvas (its own far-apart area). Helpers in `.config/driftwm/`: `arrange-cameras.sh` (screen areas, at login), `desktop.sh` (desktops 1–5 per screen), `nav.py` (Mod+arrows, on to the next screen at the edge), `refocus.py` (after a close, centre the closest window on that screen), `guard.py` (a screen pulled into another's area by Alt-Tab, the taskbar or a focus request goes back, and the mouse moves to the window's own screen instead: no mirrored screens), `bar-events.py` (refreshes the bar's desktop and window pills, which show only this screen's existing desktops and the windows of its current one), `showcase.py` (a showcase of windows on the big screen — fastfetch, btop, yazi, clock, keys, player, Claude usage: arrange them, `Mod+Shift+F8` saves the layout to `showcase.json` (positions, sizes, the screen's view and zoom), `Mod+F8` puts it back, and it opens by itself at login when that screen is connected) |
-| `waybar` | floating pill bar |
+| `waybar` | floating pill bar: per-screen desktop and window pills, a music pill (cover, live equalizer — or the icon of the device Spotify plays on — title / artist; click: play/pause, right-click: `nowplaying`, scroll: next/previous), DSEG7 clock; the Arch button is an overview of that screen |
 | `kitty` | terminal + `synthwave.conf` palette |
 | `fastfetch` | system info with the dithered portrait (kitty image protocol) |
+| `fish` | prompt and colors; `fastfetch` sized to the window (redrawn on resize; `fastfetch -w` watch mode keeps the portrait in place and drops lines in short windows); `ne` / `nee` open Emacs (quick window / IDE layout, see `dot-emacs`) |
 | `rofi` | launchers/applets (adi1090x); `launchers/type-6/synthwave.rasi` is the one bound to `Mod+D` |
 | `mako`, `swaylock` | notifications, lock screen |
 | `wireplumber` | PipeWire session manager limited to video (audio stays on PulseAudio): needed for screen recording / sharing on Wayland (Kooha, OBS, browsers) through `xdg-desktop-portal-wlr` |
@@ -36,10 +37,12 @@ so editing the live config *is* editing the repo; `git status` shows what change
 | `chromium` | `chromium-flags.conf`: video decoded by the Intel GPU (VA-API), AV1 off so YouTube sends VP9 (the GPU can't decode AV1) |
 | `lightdm` | login screen theme (GTK greeter): **not stowed**, install with `sudo lightdm/install.sh` |
 | `boot` | rEFInd boots Arch directly (hold a key for the menu) + Plymouth splash with the portrait: **not stowed**, `sudo boot/install.sh` |
-| `claude` | Claude Code theme (`/theme` → Synthwave) and status line |
+| `claude` | Claude Code theme (`/theme` → Synthwave) and status line (wrapping pills: model, folder, branch, context, 5-hour session; in Emacs only the model, the bars go to the Claude window's mode line). It also saves each session's quotas for `clawd` |
+| `clawd` | `Mod+F9`: Claude plan usage (session, weekly, per-model, credits) with an animated Clawd, awake while a Claude Code session works (hooks in `claude/.claude/hooks/`) |
 | `wallpapers` | `~/.local/share/wallpapers`: background, 2× upscale, lock image, portrait |
 | `scripts/papirus-synthwave.sh` | builds `~/.local/share/icons/Papirus-Synthwave` (Papirus-Dark + magenta folders), run by `install.sh` |
-| `dot-emacs` | submodule, linked by `install.sh` (`README.org` → `~/.emacs.d/config.org`) |
+| `dot-emacs` | submodule: the Emacs config ([camron](https://github.com/Cackbone/camron-theme) theme, treemacs on `F8`, Claude Code on `F9`, `nee` = IDE layout), linked by `install.sh` (`init.el`, `README.org` → `~/.emacs.d/config.org`, `camron-theme.el`) |
+| `autostart` | hides nm-applet and picom's XDG autostart entries in the Wayland sessions |
 | `i3`, `polybar`, `picom`, `background`, `xfce4` | X11 fallback session |
 
 ## Keys (niri)
@@ -70,14 +73,23 @@ so editing the live config *is* editing the repo; `git status` shows what change
 | `Mod+scroll`, `Mod+=` / `Mod+-`, pinch | zoom |
 | `Mod+Tab` / `Mod+O` / `Mod+W` | overview of the current desktop (again to come back); `Mod+Z` / `Mod+à` 100% |
 | `Mod+A` | jump home (canvas origin) and back |
-| `Mod+& é " ' (` | desktop 1–5, across all screens (same key / `Mod+²` = previous; `+Shift` sends the window) — `driftwm/.config/driftwm/desktop.sh` |
-| `Mod+Alt+arrows` | send the window to another monitor |
+| `Mod+& é " ' (` | desktop 1–5 of this screen, each screen has its own (same key / `Mod+²` = previous; `+Shift` sends the window) — `driftwm/.config/driftwm/desktop.sh` |
+| `Mod+Shift+Ctrl+←→` | send the window to the next screen |
 | `Mod+R` | resize mode like i3: arrows / `j k l m` (40px, `Shift` = 10px), `Esc` to leave (`resize-mode.sh`) |
 | `Mod+F` / `Mod+Shift+F` / `Mod+G` | fullscreen / fit to screen / fill free space |
 | `Alt+Tab` | recent windows |
 | `Mod+Return` / `Mod+D` / `Mod+E` / `Mod+V` | kitty / launcher / yazi / clipboard |
-| `Print`, `Mod+F4` | region screenshot |
+| `Print`, `Mod+F4` | region screenshot (saved to `~/Pictures/Screenshots` and copied) |
+| `Mod+F7` / `Mod+F9` | now playing / Claude usage |
+| `Mod+F8` / `Mod+Shift+F8` | showcase layout on the big screen: restore / save |
+| media keys | play/pause, next, previous (`music-ctl`), volume (`pactl`) |
 | `Mod+Q`, `Mod+Shift+A` | close window · `Mod+Ctrl+Shift+Q` quit |
+
+## Not in this repo
+
+- `~/.config/spotify-player/app.toml` (it holds the Spotify app's client ID). Keep
+  `playback_refresh_duration_in_ms = 0`: polling Spotify's Web API every few seconds exhausts a
+  developer app's quota, and play/pause then gets rejected (HTTP 429) for hours.
 
 ## Palette
 
