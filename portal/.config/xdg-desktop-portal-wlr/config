@@ -1,0 +1,7 @@
+# Screen recording / sharing on driftwm goes through xdg-desktop-portal-wlr (driftwm's
+# portals.conf picks it; niri uses its own). When an app (Kooha, OBS, a browser) asks to
+# record, the screens dim and you click the one to share — slurp, in the rice's colours.
+# Esc cancels. Needs WirePlumber running (the `wireplumber` package) to deliver the video.
+[screencast]
+chooser_type = simple
+chooser_cmd = slurp -f "Monitor: %o" -or -b '#090d1799' -B '#7b2cbf26' -s '#e040fb33' -c '#e040fbff' -w 3

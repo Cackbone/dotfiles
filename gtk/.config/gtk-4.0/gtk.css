@@ -1,0 +1,116 @@
+/* Synthwave for GTK4 / libadwaita apps — palette: see README.md */
+@define-color accent_color #e040fb;
+@define-color accent_bg_color #e040fb;
+@define-color accent_fg_color #131244;
+
+@define-color window_bg_color #131244;
+@define-color window_fg_color #e8e6ff;
+@define-color view_bg_color #0f0e38;
+@define-color view_fg_color #e8e6ff;
+@define-color headerbar_bg_color #090d17;
+@define-color headerbar_fg_color #e8e6ff;
+@define-color headerbar_backdrop_color #090d17;
+@define-color headerbar_border_color #e040fb;
+@define-color sidebar_bg_color #090d17;
+@define-color sidebar_fg_color #c8c6ef;
+@define-color sidebar_backdrop_color #090d17;
+@define-color secondary_sidebar_bg_color #0f0e38;
+@define-color card_bg_color #1a1a6e;
+@define-color card_fg_color #e8e6ff;
+@define-color dialog_bg_color #131244;
+@define-color dialog_fg_color #e8e6ff;
+@define-color popover_bg_color #131244;
+@define-color popover_fg_color #e8e6ff;
+@define-color thumbnail_bg_color #1a1a6e;
+
+@define-color destructive_color #ff4f79;
+@define-color destructive_bg_color #ff4f79;
+@define-color success_color #69ff47;
+@define-color success_bg_color #69ff47;
+@define-color warning_color #ffd166;
+@define-color warning_bg_color #ffd166;
+@define-color error_color #ff4f79;
+@define-color error_bg_color #ff4f79;
+
+/* --- plain GTK4 apps (pavucontrol, …) use GTK's built-in "Default" theme, whose colours are
+       compiled into each widget rule (#353535, #3584e4…), not read from the names above:
+       style the widgets directly, like ../gtk-3.0/gtk.css does for GTK3. --- */
+@define-color deep    #090d17;
+@define-color navy    #131244;
+@define-color view    #0f0e38;
+@define-color panel   #1a1a6e;
+@define-color edge    #3b2a78;
+@define-color fg      #e8e6ff;
+@define-color dim     #8b8bc7;
+@define-color magenta #e040fb;
+@define-color cyan    #00bcd4;
+@define-color ice     #76e6f2;
+
+window, window.background, dialog, .background { background-color: @navy; color: @fg; }
+headerbar, .titlebar, windowcontrols {
+  background: @deep;
+  color: @fg;
+  box-shadow: none;
+  border-color: @edge;
+}
+headerbar { border-bottom: 1px solid @edge; }
+.view, textview text, list, listview, columnview, gridview, treeview, .content-view { background-color: @view; color: @fg; }
+row:hover { background-color: alpha(@magenta, 0.10); }
+row:selected, *:selected, selection { background-color: @magenta; color: @navy; }
+separator { background: @edge; }
+.dim-label, label.dim-label { color: @dim; }
+link, *:link { color: @ice; }
+
+/* tabs (pavucontrol's Playback / Recording / Output Devices …) */
+notebook > header { background: @deep; border-color: @edge; }
+notebook > header tab { color: @dim; }
+notebook > header tab:hover { color: @fg; }
+notebook > header tab:checked { color: @fg; box-shadow: inset 0 -2px @magenta; }
+notebook > stack { background: @navy; }
+
+/* buttons, dropdowns, popovers */
+button {
+  background: @panel;
+  color: @fg;
+  border-color: @edge;
+  box-shadow: none;
+  text-shadow: none;
+}
+button:hover { background: @edge; }
+button:active, button:checked { background: @magenta; color: @navy; }
+button.flat, button.flat:not(:hover):not(:checked) { background: transparent; border-color: transparent; }
+popover > contents, popover.menu > contents {
+  background: @navy;
+  color: @fg;
+  border: 1px solid @magenta;
+  box-shadow: none;
+}
+popover > arrow { background: @navy; border-color: @magenta; }
+popover modelbutton:hover, popover row:hover { background: alpha(@magenta, 0.15); }
+
+/* sliders, meters, toggles */
+scale trough { background: @panel; }
+scale highlight, progressbar progress, levelbar block.filled, levelbar block.high, levelbar block.full {
+  background: @magenta; border-color: @magenta;
+}
+levelbar block.low { background: @cyan; border-color: @cyan; }
+levelbar trough, progressbar trough { background: @panel; }
+scale slider { background: @fg; border: 1px solid @magenta; box-shadow: none; border-radius: 9999px; }
+switch { background: @panel; }
+switch:checked { background: @magenta; }
+switch slider { background: @fg; }
+checkbutton check:checked, checkbutton radio:checked, check:checked, radio:checked {
+  background: @magenta; color: @navy; border-color: @magenta;
+}
+
+/* text entries */
+entry, spinbutton {
+  background: @deep;
+  color: @fg;
+  border-color: @edge;
+  caret-color: @magenta;
+}
+entry:focus-within, spinbutton:focus-within { outline-color: alpha(@magenta, 0.6); border-color: @magenta; }
+
+*:focus-visible { outline-color: alpha(@magenta, 0.6); }
+tooltip, tooltip.background { background: @navy; color: @fg; border: 1px solid @magenta; }

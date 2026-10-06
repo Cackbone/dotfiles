@@ -1,0 +1,7 @@
+[Desktop Entry]
+# Overrides /etc/xdg/autostart/nm-applet.desktop: its tray icon duplicated the waybar network
+# pill, which now shows the signal itself (click: nmtui, right-click: nm-connection-editor).
+Type=Application
+Name=Network
+Exec=nm-applet
+Hidden=true

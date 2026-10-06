@@ -1,0 +1,87 @@
+{
+  "screen": "DP-1",
+  "camera": [
+    1315,
+    -292
+  ],
+  "zoom": 0.826446,
+  "windows": [
+    {
+      "app_id": "showcase-clock",
+      "position": [
+        1295,
+        314
+      ],
+      "size": [
+        600,
+        180
+      ]
+    },
+    {
+      "app_id": "clawd",
+      "position": [
+        2195,
+        275
+      ],
+      "size": [
+        820,
+        300
+      ]
+    },
+    {
+      "app_id": "nowplaying",
+      "position": [
+        1275,
+        14
+      ],
+      "size": [
+        720,
+        300
+      ]
+    },
+    {
+      "app_id": "showcase-fetch",
+      "position": [
+        355,
+        -46
+      ],
+      "size": [
+        1040,
+        420
+      ]
+    },
+    {
+      "app_id": "showcase-keys",
+      "position": [
+        1315,
+        -326
+      ],
+      "size": [
+        640,
+        340
+      ]
+    },
+    {
+      "app_id": "showcase-btop",
+      "position": [
+        2075,
+        -346
+      ],
+      "size": [
+        840,
+        900
+      ]
+    },
+    {
+      "app_id": "showcase-yazi",
+      "position": [
+        475,
+        -728
+      ],
+      "size": [
+        1000,
+        424
+      ]
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+# Synthwave boot splash: only the portrait, fading in on navy (#131244).
+# Size and position are recomputed every frame (like Plymouth's own example): screens
+# appear one after another during boot, so the geometry at script start isn't final.
+
+Window.SetBackgroundTopColor(0.075, 0.071, 0.267);
+Window.SetBackgroundBottomColor(0.075, 0.071, 0.267);
+
+source = Image("portrait.png");
+portrait.sprite = Sprite();
+portrait.sprite.SetOpacity(0);
+portrait.h = 0;
+opacity = 0;
+
+fun layout ()
+{
+    h = Math.Int(Window.GetHeight() * 0.45);
+    if (h != portrait.h)
+    {
+        portrait.h = h;
+        portrait.w = Math.Int(source.GetWidth() * h / source.GetHeight());
+        portrait.sprite.SetImage(source.Scale(portrait.w, portrait.h));
+    }
+    portrait.sprite.SetX(Window.GetX() + Window.GetWidth()  / 2 - portrait.w / 2);
+    portrait.sprite.SetY(Window.GetY() + Window.GetHeight() / 2 - portrait.h / 2);
+}
+
+fun refresh_callback ()
+{
+    layout();
+    if (opacity < 1)
+    {
+        opacity += 0.03;
+        if (opacity > 1) opacity = 1;
+        portrait.sprite.SetOpacity(opacity);
+    }
+}
+Plymouth.SetRefreshFunction(refresh_callback);
+
+# Password prompt (only used if a disk is ever encrypted): text under the portrait, magenta.
+message.sprite = Sprite();
+fun display_password_callback (prompt, bullets)
+{
+    text = prompt + "  ";
+    for (i = 0; i < bullets; i++) text += "*";
+    message.sprite.SetImage(Image.Text(text, 0.878, 0.251, 0.984));
+    message.sprite.SetX(Window.GetX() + Window.GetWidth() / 2 - message.sprite.GetImage().GetWidth() / 2);
+    message.sprite.SetY(Window.GetY() + Window.GetHeight() / 2 + portrait.h / 2 + 30);
+}
+fun display_normal_callback ()
+{
+    message.sprite.SetImage(Image.Text("", 1, 1, 1));
+}
+Plymouth.SetDisplayPasswordFunction(display_password_callback);
+Plymouth.SetDisplayNormalFunction(display_normal_callback);

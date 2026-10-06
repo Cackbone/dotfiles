@@ -1,0 +1,25 @@
+/* Synthwave colors for Firefox's own pages (new tab, home, blank). */
+
+@-moz-document url("about:newtab"), url("about:home"), url("about:privatebrowsing") {
+  :root, body {
+    --color-accent-primary: #e040fb !important;
+    --color-accent-primary-hover: #f07cff !important;
+    --color-accent-primary-active: #c02edb !important;
+    --newtab-primary-action-background: #e040fb !important;
+    --newtab-primary-element-text-color: #131244 !important;
+    --newtab-background-card: #1a1a6e !important;
+    --newtab-weather-background-color: #1a1a6e !important;
+    --newtab-button-static-background: #1a1a6e !important;
+    --newtab-button-static-hover-background: #3b2a78 !important;
+    --link-color: #76e6f2 !important;
+    --link-color-hover: #e040fb !important;
+    --newtab-background-color: #131244 !important;
+    --newtab-background-color-secondary: #1a1a6e !important;
+    --newtab-text-primary-color: #e8e6ff !important;
+    background-color: #131244 !important;
+  }
+}
+
+@-moz-document url("about:blank") {
+  html, body { background-color: #131244 !important; }
+}

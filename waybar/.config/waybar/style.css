@@ -1,0 +1,232 @@
+/* Synthwave pills — palette: see README.md */
+@define-color deep     #090d17;
+@define-color pill     #101621;
+@define-color edge     #1f2540;
+@define-color navy     #131244;
+@define-color fg       #e8e6ff;
+@define-color dim      #8b8bc7;
+@define-color magenta  #e040fb;
+@define-color purple   #7b2cbf;
+@define-color cyan     #00bcd4;
+@define-color ice      #76e6f2;
+@define-color lime     #69ff47;
+@define-color red      #ff4f79;
+@define-color yellow   #ffd166;
+
+* {
+  font-family: "JetBrainsMono Nerd Font", monospace;
+  font-size: 12px;
+  border: none;
+  border-radius: 0;
+  min-height: 0;
+}
+
+/* glass: translucent dark bar over niri's blur (layer-rule in niri config) */
+window#waybar {
+  background: alpha(@deep, 0.55);
+  border: 1px solid alpha(@magenta, 0.8);
+  border-radius: 18px;
+  color: @fg;
+}
+
+tooltip {
+  background: @navy;
+  border: 1px solid @magenta;
+  border-radius: 0;
+}
+tooltip label { color: @fg; }
+
+#custom-logo,
+#workspaces,
+#window,
+#custom-music,
+#network,
+#pulseaudio,
+#battery,
+#temperature,
+#clock,
+#custom-time {
+  background: alpha(@pill, 0.45);
+  border: 1px solid alpha(@fg, 0.10);
+  box-shadow: inset 0 1px alpha(@fg, 0.06);
+  border-radius: 14px;
+  padding: 0 14px;
+  margin: 5px 0;
+}
+
+.modules-left  { margin-left: 5px; }
+.modules-right { margin-right: 5px; }
+
+#custom-logo {
+  color: @ice;
+  font-size: 18px;
+  padding: 0 16px 0 10px; /* the Arch glyph sits ~3px right of its cell centre */
+  border-color: alpha(@cyan, 0.4);
+}
+
+/* workspaces: numbers, active one gets a cyan ring */
+#workspaces { padding: 0 6px; }
+#workspaces button {
+  color: @dim;
+  padding: 0 7px;
+  margin: 4px 1px;
+  border-radius: 12px;
+  background: transparent;
+  box-shadow: none;
+}
+#workspaces button.active {
+  color: @ice;
+  background: alpha(@cyan, 0.12);
+  box-shadow: inset 0 0 0 1px @cyan;
+}
+#workspaces button.urgent { color: @red; }
+#workspaces button:hover  { color: @fg; background: alpha(@magenta, 0.15); }
+
+#window {
+  color: @fg;
+  border-color: alpha(@magenta, 0.35);
+}
+window#waybar.empty #window { color: @dim; }
+
+#custom-music { color: @fg; }   /* width follows the text; music.sh caps it (TITLE_LEN/ARTIST_LEN) */
+#custom-music.paused { color: @dim; }
+
+/* album cover + music text read as one pill: the cover is its rounded left end */
+#music { background: none; border: none; box-shadow: none; padding: 0; margin: 0; }
+#image.cover {
+  background: alpha(@pill, 0.45);
+  border: 1px solid alpha(@fg, 0.10);
+  border-right-width: 0;
+  border-radius: 14px 0 0 14px;
+  padding: 0 2px 0 6px;
+  margin: 5px 0;
+}
+/* middle: the equalizer, a segment of the same pill */
+#custom-eq {
+  background: alpha(@pill, 0.45);
+  border: 1px solid alpha(@fg, 0.10);
+  border-left-width: 0;
+  border-right-width: 0;
+  border-radius: 0;
+  color: @fg;
+  padding: 0 4px 0 8px;
+  margin: 5px 0;
+}
+#custom-eq.paused { color: @dim; }
+#custom-eq.remote { color: @ice; }          /* playing on another device: its icon */
+/* right end: the text */
+#music #custom-music {
+  border-left-width: 0;
+  border-radius: 0 14px 14px 0;
+  padding-left: 8px;
+}
+
+#network.disconnected { color: @red; }
+#pulseaudio.muted     { color: @dim; }
+#battery.charging     { color: @lime; }
+#battery.warning:not(.charging)  { color: @yellow; }
+#battery.critical:not(.charging) { color: @red; }
+#temperature          { color: @yellow; }
+#temperature.critical { color: @red; }
+
+#custom-time {
+  color: @ice;
+  font-family: "DSEG7 Classic";   /* seven-segment LCD look (fonts package) */
+  font-size: 17px;
+  font-weight: bold;
+  letter-spacing: 2px;
+  text-shadow: 0 0 6px alpha(@ice, 0.55);
+  padding: 0 16px;
+  border-color: alpha(@cyan, 0.5);
+  background: alpha(@navy, 0.55);
+}
+
+/* no pill for the tray: it collapses to nothing when empty */
+#tray { padding: 0 6px; }
+#tray > .needs-attention { color: @red; }
+
+/* driftwm desktops (desktop.sh status N) and windows (desktop.sh win N): rounded squares
+   like the Arch button. A lone button stands on its own ("solo"). Several ("grouped") sit
+   flush (group "spacing": 0) and paint one shared box between them: each is a full-height
+   segment, the "first"/"last" ones round the outer ends. No box at all for a single one. */
+#desktops, #windows { background: none; border: none; box-shadow: none; padding: 0; margin: 0; }
+
+#custom-d1, #custom-d2, #custom-d3, #custom-d4, #custom-d5,
+#custom-w1, #custom-w2, #custom-w3, #custom-w4, #custom-w5, #custom-w6, #custom-w7, #custom-w8 {
+  color: @dim;
+  padding: 0;
+  min-width: 34px;
+  min-height: 34px;
+  margin: 5px 0;
+  background: alpha(@pill, 0.45);
+  border: 1px solid alpha(@fg, 0.10);
+}
+#custom-w1, #custom-w2, #custom-w3, #custom-w4, #custom-w5, #custom-w6, #custom-w7, #custom-w8 { font-size: 14px; }
+
+/* one: a smaller rounded square on its own (the Arch logo stays the big one) */
+#custom-d1.solo, #custom-d2.solo, #custom-d3.solo, #custom-d4.solo, #custom-d5.solo,
+#custom-w1.solo, #custom-w2.solo, #custom-w3.solo, #custom-w4.solo,
+#custom-w5.solo, #custom-w6.solo, #custom-w7.solo, #custom-w8.solo {
+  min-width: 26px;
+  min-height: 26px;
+  margin: 10px 0;           /* waybar stretches modules to the bar's height: trim to 26 */
+  border-radius: 9px;
+}
+
+/* several: segments of one box */
+#custom-d1.grouped, #custom-d2.grouped, #custom-d3.grouped, #custom-d4.grouped, #custom-d5.grouped,
+#custom-w1.grouped, #custom-w2.grouped, #custom-w3.grouped, #custom-w4.grouped,
+#custom-w5.grouped, #custom-w6.grouped, #custom-w7.grouped, #custom-w8.grouped {
+  border-radius: 0;
+  border-left-width: 0;
+  border-right-width: 0;
+}
+#custom-d1.first, #custom-d2.first, #custom-d3.first, #custom-d4.first, #custom-d5.first,
+#custom-w1.first, #custom-w2.first, #custom-w3.first, #custom-w4.first,
+#custom-w5.first, #custom-w6.first, #custom-w7.first, #custom-w8.first {
+  border-radius: 18px 0 0 18px;            /* fully round ends: a pill */
+  border-left-width: 1px;
+}
+#custom-d1.last, #custom-d2.last, #custom-d3.last, #custom-d4.last, #custom-d5.last,
+#custom-w1.last, #custom-w2.last, #custom-w3.last, #custom-w4.last,
+#custom-w5.last, #custom-w6.last, #custom-w7.last, #custom-w8.last {
+  border-radius: 0 18px 18px 0;
+  border-right-width: 1px;
+}
+
+/* current desktop / focused window: cyan (solo: cyan border; in a pill: rounded-square highlight) */
+#custom-d1.active, #custom-d2.active, #custom-d3.active, #custom-d4.active, #custom-d5.active,
+#custom-w1.focused, #custom-w2.focused, #custom-w3.focused, #custom-w4.focused,
+#custom-w5.focused, #custom-w6.focused, #custom-w7.focused, #custom-w8.focused { color: @ice; }
+#custom-d1.grouped.active, #custom-d2.grouped.active, #custom-d3.grouped.active,
+#custom-d4.grouped.active, #custom-d5.grouped.active,
+#custom-w1.grouped.focused, #custom-w2.grouped.focused, #custom-w3.grouped.focused, #custom-w4.grouped.focused,
+#custom-w5.grouped.focused, #custom-w6.grouped.focused, #custom-w7.grouped.focused, #custom-w8.grouped.focused {
+  /* a rounded square inside the pill, same shape as a lone button. GTK3 can't nest a box in
+     a module, so it's an image (active.svg) centred on the pill's background */
+  background-image: url("active.svg");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 26px 26px;
+}
+#custom-d1.solo.active, #custom-d2.solo.active, #custom-d3.solo.active, #custom-d4.solo.active, #custom-d5.solo.active,
+#custom-w1.solo.focused, #custom-w2.solo.focused, #custom-w3.solo.focused, #custom-w4.solo.focused,
+#custom-w5.solo.focused, #custom-w6.solo.focused, #custom-w7.solo.focused, #custom-w8.solo.focused {
+  border-color: alpha(@cyan, 0.5);
+}
+#custom-d1.occupied, #custom-d2.occupied, #custom-d3.occupied, #custom-d4.occupied, #custom-d5.occupied { color: @fg; }
+
+/* niri workspaces: rounded squares too */
+#workspaces button {
+  min-width: 26px;
+  min-height: 26px;
+  padding: 0;
+  margin: 4px 2px;
+  border-radius: 9px;
+}
+
+/* the Arch logo as a true square (glyph sits ~3px right of its cell centre: shift the box) */
+#custom-logo {
+  min-width: 28px;
+  padding: 0 6px 0 0;
+}

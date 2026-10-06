@@ -1,0 +1,511 @@
+#!/usr/bin/env python3
+"""clawd — Claude plan usage in a terminal window, with an animated Clawd (Mod+F9).
+
+Bars: the 5-hour session, the weekly limit, per-model weekly limits (e.g. Fable) and the
+remaining credits, with their reset times. It reads the same usage endpoint Claude Code
+uses, with Claude Code's login (~/.claude/.credentials.json). It never refreshes the token
+itself (that would log Claude Code out): when the token expires, using Claude Code renews it
+and this picks the new one up. It asks at most every 5 minutes, all open windows sharing one
+cached answer ($XDG_RUNTIME_DIR/clawd-usage.json), and backs off when rate limited. Session and weekly come live from Claude Code itself when
+it runs (the statusline saves them to $XDG_RUNTIME_DIR/clawd-statusline/<session>.json, the newest wins); the API is
+then only asked every 30 minutes, for the rest (Fable, credits).
+
+Clawd is awake (walking, blinking, sparkles) while a Claude Code session is working, and
+dozes, dimmed and still, when none is. Claude Code hooks (~/.claude/hooks/clawd-state.sh)
+record each session's state in $XDG_RUNTIME_DIR/clawd/<session id> as "<state> <pid>".
+
+Keys: r refresh · q / Esc quit
+"""
+import json, math, os, random, select, shutil, signal, sys, termios, threading, time, tty
+import urllib.error, urllib.request
+from datetime import datetime, timezone
+
+CREDENTIALS = os.path.expanduser("~/.claude/.credentials.json")
+URL = "https://api.anthropic.com/api/oauth/usage"
+POLL = 300                                    # s between fetches (shared by all windows)
+MIN_REFRESH = 30                              # r refreshes only if older than this
+FPS = 12
+FEED = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "clawd-statusline")   # <session>.json each
+FEED_FRESH = 900                              # the statusline feed counts as live this long
+POLL_SLOW = 1800                              # API poll while the feed is live (Fable, credits)
+CACHE = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "clawd-usage.json")
+STATE_DIR = os.environ.get("CLAWD_STATE_DIR") or os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "clawd")
+
+# palette (README.md); the body is the theme's clawd_body
+BODY, SHIMMER, NAVY = "#e040fb", "#f07cff", "#131244"
+CYAN, ICE, LIME, RED, YELLOW = "#00bcd4", "#76e6f2", "#69ff47", "#ff4f79", "#ffd166"
+FG, DIM, EDGE, PURPLE = "#e8e6ff", "#8b8bc7", "#3b2a78", "#7b2cbf"
+
+
+def rgb(h):
+    return tuple(int(h[i:i + 2], 16) for i in (1, 3, 5))
+
+
+def mix(a, b, t):
+    a, b = rgb(a), rgb(b)
+    return "#%02x%02x%02x" % tuple(round(x + (y - x) * t) for x, y in zip(a, b))
+
+
+def fg(h):
+    return "\033[38;2;%d;%d;%dm" % rgb(h)
+
+
+def bg(h):
+    return "\033[48;2;%d;%d;%dm" % rgb(h)
+
+
+RST, BOLD = "\033[0m", "\033[1m"
+
+
+# ------------------------------------------------------------------------------ data
+class Usage:
+    """Plan usage, fetched at most every POLL s and shared by every clawd window through a
+    cache file; on HTTP 429 it backs off (Retry-After, else doubling up to 30 min) and keeps
+    showing the last numbers."""
+
+    def __init__(self):
+        self.data, self.plan, self.error, self.fetched = None, "", None, 0.0
+        self.retry_at, self.backoff = 0.0, 0.0
+        self.busy = False
+        self.wake = threading.Event()
+        try:                                         # the plan name, without a request
+            with open(CREDENTIALS) as f:
+                self.plan = json.load(f)["claudeAiOauth"].get("subscriptionType") or ""
+        except (OSError, ValueError, KeyError):
+            pass
+
+    def load(self):
+        try:
+            with open(CACHE) as f:
+                c = json.load(f)
+        except (OSError, ValueError):
+            return
+        if c.get("fetched", 0) >= self.fetched and c.get("data"):
+            self.data, self.plan, self.fetched = c["data"], c.get("plan") or self.plan, c["fetched"]
+            self.error = None
+        self.retry_at = max(self.retry_at, c.get("retry_at", 0))
+        if self.retry_at > time.time() and not self.error:
+            self.error = "rate limited"               # another window hit the limit
+        self.backoff = max(self.backoff, c.get("backoff", 0))
+
+    def save(self):
+        try:
+            tmp = CACHE + f".{os.getpid()}"
+            with open(tmp, "w") as f:
+                json.dump({"data": self.data, "plan": self.plan, "fetched": self.fetched,
+                           "retry_at": self.retry_at, "backoff": self.backoff}, f)
+            os.replace(tmp, CACHE)
+        except OSError:
+            pass
+
+    def loop(self):
+        forced = False
+        while True:
+            self.load()                              # another window may have fetched
+            now = time.time()
+            poll = POLL_SLOW if feed() else POLL
+            due = self.fetched + (MIN_REFRESH if forced else poll)
+            if now >= max(due, self.retry_at):
+                self.fetch()
+                self.save()
+            forced = self.wake.wait(max(5.0, min(poll, max(self.fetched + poll, self.retry_at) - time.time())))
+            self.wake.clear()
+
+    def fetch(self):
+        self.busy = True
+        try:
+            with open(CREDENTIALS) as f:
+                oauth = json.load(f)["claudeAiOauth"]
+            if oauth.get("expiresAt", 0) / 1000 < time.time():
+                raise PermissionError
+            req = urllib.request.Request(URL, headers={
+                "Authorization": "Bearer " + oauth["accessToken"],
+                "anthropic-beta": "oauth-2025-04-20",
+                "Content-Type": "application/json",
+                "User-Agent": "clawd-usage",
+            })
+            with urllib.request.urlopen(req, timeout=10) as r:
+                self.data = json.load(r)
+            self.plan = oauth.get("subscriptionType") or ""
+            self.error, self.fetched, self.backoff = None, time.time(), 0.0
+        except (PermissionError, KeyError):
+            self.error = "login expired: open Claude Code to renew it"
+        except urllib.error.HTTPError as e:
+            if e.code == 429:
+                try:
+                    wait = float(e.headers.get("Retry-After") or 0)
+                except ValueError:
+                    wait = 0
+                self.backoff = min(1800.0, max(POLL, self.backoff * 2))
+                self.retry_at = time.time() + max(wait, self.backoff)
+                self.error = "rate limited"
+            else:
+                self.error = ("login expired: open Claude Code to renew it" if e.code == 401
+                              else f"usage endpoint: HTTP {e.code}")
+        except (OSError, ValueError) as e:
+            self.error = f"offline ({e.__class__.__name__})"
+        finally:
+            self.busy = False
+
+
+STALE_WORKING = 900                           # s without a hook event: not working any more
+_activity = (0.0, (0, 0))
+
+
+def activity():
+    """(working, open) Claude Code sessions, from the hook files (sessions whose claude
+    process is gone are skipped); re-read at most every 0.3 s. A "working" that no hook has
+    touched for STALE_WORKING s counts as idle: an interrupt (Esc) or a session continued
+    under a new id mid-turn never sends Stop, and would keep Clawd awake forever."""
+    global _activity
+    if time.monotonic() - _activity[0] < 0.3:
+        return _activity[1]
+    working = alive = 0
+    try:
+        names = os.listdir(STATE_DIR)
+    except OSError:
+        names = []
+    for name in names:
+        try:
+            path = os.path.join(STATE_DIR, name)
+            with open(path) as f:
+                state, pid = f.read().split()
+            if state == "working" and time.time() - os.path.getmtime(path) > STALE_WORKING:
+                state = "idle"
+            # a claude process: named "claude", or after its version (2.1.287) when started from
+            # the versioned binary — its executable tells
+            with open(f"/proc/{int(pid)}/comm") as f:
+                if f.read().strip() != "claude" and "/claude/versions/" not in os.readlink(f"/proc/{int(pid)}/exe"):
+                    continue
+        except (OSError, ValueError):
+            continue
+        alive += 1
+        working += state == "working"
+    _activity = (time.monotonic(), (working, alive))
+    return working, alive
+
+
+def feed():
+    """Session / weekly quotas the statusline saved from Claude Code (claude/statusline.sh),
+    as {"session": (percent, iso reset), "weekly_all": …}, or {} when none is fresh. Each
+    session writes its own file, with what it last heard: an idle session can hold old
+    numbers (from before a plan change…). The newest wins: the later 5-hour window, else the
+    higher usage (within a window it only grows)."""
+    best, now = None, time.time()
+    try:
+        names = os.listdir(FEED)
+    except OSError:
+        names = []
+    for name in names:
+        try:
+            with open(os.path.join(FEED, name)) as f:
+                d = json.load(f)
+        except (OSError, ValueError):
+            continue
+        rl = d.get("rate_limits") or {}
+        if now - d.get("at", 0) > FEED_FRESH or not rl.get("five_hour"):
+            continue
+        h = rl["five_hour"]
+        key = (h.get("resets_at") or 0, h.get("used_percentage") or 0)
+        if best is None or key > best[0]:
+            best = (key, d)
+    if not best:
+        return {}
+    d = best[1]
+    out = {"_at": d["at"]}
+    for key, kind in (("five_hour", "session"), ("seven_day", "weekly_all")):
+        v = d["rate_limits"].get(key)
+        if v and v.get("used_percentage") is not None:
+            iso = datetime.fromtimestamp(v["resets_at"], timezone.utc).isoformat() if v.get("resets_at") else None
+            out[kind] = (round(v["used_percentage"]), iso)
+    return out
+
+
+def merged(u):
+    """The usage to show: the API's, with session / weekly taken from the statusline feed
+    when that is newer (it updates live and costs no request)."""
+    f = feed()
+    d = dict(u.data or {})
+    limits = [dict(l) for l in d.get("limits") or []]
+    if f and f["_at"] > u.fetched:
+        for kind in ("session", "weekly_all"):
+            if kind not in f:
+                continue
+            pct, iso = f[kind]
+            l = next((l for l in limits if l.get("kind") == kind), None)
+            if l is None:
+                l = {"kind": kind}
+                limits.insert(0 if kind == "session" else len([x for x in limits if x.get("kind") == "session"]), l)
+            l["percent"], l["resets_at"] = pct, iso or l.get("resets_at")
+    if limits:
+        d["limits"] = limits
+    return d or None
+
+
+def when(iso, short_days=False):
+    """Reset time: 'in 1h02m' today-ish, 'Wed 21:00' this week, 'Nov 05' further."""
+    if not iso:
+        return ""
+    t = datetime.fromisoformat(iso).astimezone()
+    left = (t - datetime.now(timezone.utc)).total_seconds()
+    if left <= 0:
+        return "now"
+    if left < 86400:
+        h, m = divmod(int(left) // 60, 60)
+        return f"in {h}h{m:02d}" if h else f"in {m}m"
+    if left < 7 * 86400 and not short_days:
+        return t.strftime("%a %H:%M")
+    return t.strftime("%b %d")
+
+
+def rows(d):
+    """(label, percent used, right-hand text, reset) for every bar to draw."""
+    out = []
+    names = {"session": "session", "weekly_all": "weekly"}
+    for lim in d.get("limits") or []:
+        kind = lim.get("kind", "")
+        scope = lim.get("scope") or {}
+        name = names.get(kind) or ((scope.get("model") or {}).get("display_name")
+                                   or (scope.get("surface") or {}).get("display_name")
+                                   or kind.replace("_", " "))
+        pct = lim.get("percent") or 0
+        out.append((name.lower(), pct, f"{pct:>3}%", when(lim.get("resets_at"))))
+    # credit pools (any entry with a dollar limit) and paid extra usage
+    for v in d.values():
+        if isinstance(v, dict) and v.get("limit_dollars"):
+            lim, left = v["limit_dollars"], v.get("remaining_dollars") or 0
+            out.append(("credits", 100 * (lim - left) / lim, f"${left:g} left",
+                        when(v.get("resets_at"), short_days=True)))
+    ex = d.get("extra_usage") or {}
+    if ex.get("is_enabled") and ex.get("monthly_limit"):
+        div = 10 ** (ex.get("decimal_places") or 0)
+        used, lim = (ex.get("used_credits") or 0) / div, ex["monthly_limit"] / div
+        out.append(("extra", 100 * used / lim, f"${lim - used:g} left", "monthly"))
+    return out
+
+
+# ---------------------------------------------------------------------------- clawd
+# Claude Code's mascot, as pixels (from its ▐▛███▜▌ art): 18 × 5, eyes are the holes.
+# A pixel is one background-coloured cell: tall like the quadrant pixels of the original
+# art, so Clawd keeps his proportions (and unlike half-block glyphs, plain cell backgrounds
+# always render in kitty).
+SPRITE = [
+    "...############...",
+    "...##.######.##...",
+    ".################.",
+    "...############...",
+    "....#.#....#.#....",
+]
+EYES = [(5, 1), (12, 1)]
+PAD_X, PAD_Y = 5, 1                                 # pixels around Clawd: sparkles, the hop
+SPRITE_W = len(SPRITE[0]) + 2 * PAD_X              # in columns
+SPRITE_H = len(SPRITE) + 2 * PAD_Y                  # in rows
+
+
+def clawd(t, mood):
+    """{(x, y): color or (bg, fg, glyph)} of Clawd at time t, in pixels."""
+    px = {}
+    if mood == "sleep":                             # dozing: dimmed, still, eyes shut
+        body = mix(BODY, NAVY, 0.45)
+        for y, line in enumerate(SPRITE):
+            for x, c in enumerate(line):
+                if c == "#":
+                    px[(x, y)] = body
+        for e in EYES:
+            px[e] = (body, NAVY, "━")
+        return px
+    blink = (t % 4.2) < 0.15 or 0.3 < (t % 9.7) < 0.42
+    step = int(t * 4) % 4                           # walk in place: both, left up, both, right up
+    wave = (t % 11) < 1.6
+    body = RED if mood == "hot" else mix(BODY, SHIMMER, (0.5 + 0.5 * math.sin(t * 2.2)) * 0.6)
+    for y, line in enumerate(SPRITE):
+        for x, c in enumerate(line):
+            if c != "#":
+                continue
+            if y == 4 and ((step == 1 and x in (4, 11)) or (step == 3 and x in (6, 13))):
+                continue                            # that leg is lifted
+            if wave and (x, y) == (16, 2):
+                continue                            # the right arm waves
+            px[(x, y)] = body
+    if wave:
+        px[(16, 1 if int(t * 6) % 2 else 2)] = body
+    if blink:
+        for e in EYES:
+            px[e] = body
+    return px
+
+
+def render_sprite(t, mood):
+    """SPRITE_H text rows of SPRITE_W columns: Clawd with twinkling sparkles around."""
+    asleep = mood == "sleep"
+    hop = 1 if not asleep and (t % 2.4) < 0.25 else 0   # a little hop now and then
+    canvas = {(PAD_X + x, PAD_Y + y - hop): c for (x, y), c in clawd(t, mood).items()}
+    if mood == "hot":                               # sweat drop by the head
+        canvas[(PAD_X + 17, PAD_Y - hop)] = ICE
+    W = SPRITE_W
+    rnd = random.Random(7)                          # fixed spots, each on its own phase
+    sparks = {}
+    if asleep:                                      # no sparkles, just a quiet z Z
+        sparks[(W - PAD_X + 1, 1)] = fg(EDGE) + "z"
+        sparks[(W - PAD_X + 2, 0)] = fg(DIM) + "Z"
+    for i in range(0 if asleep else 8):
+        x = rnd.randint(0, PAD_X - 2) if i % 2 == 0 else rnd.randint(W - PAD_X + 1, W - 1)
+        y = rnd.randint(0, SPRITE_H - 1)
+        phase, speed = rnd.random() * 6.28, 1.5 + rnd.random() * 2
+        b = 0.5 + 0.5 * math.sin(t * speed + phase)
+        if b > 0.35:
+            glyph = "✦" if b > 0.85 else "✧" if b > 0.6 else "·"
+            sparks[(x, y)] = fg(mix(EDGE, (CYAN, ICE, YELLOW, BODY)[i % 4], b)) + glyph
+    lines = []
+    for y in range(SPRITE_H):
+        s = ""
+        for x in range(W):
+            c = canvas.get((x, y))
+            if isinstance(c, tuple):                # a cell with a glyph (closed eye)
+                s += bg(c[0]) + fg(c[1]) + c[2] + RST
+            elif c:
+                s += bg(c) + " " + "\033[49m"
+            elif (x, y) in sparks:
+                s += sparks[(x, y)] + RST
+            else:
+                s += " "
+        lines.append(s + RST)
+    return lines
+
+
+def center(s, w, width):
+    return " " * max(0, (width - w) // 2) + s
+
+
+# ----------------------------------------------------------------------------- bars
+def bar(pct, n, t, glint=True):
+    """Gradient meter (cyan → magenta, red from 80 %) with a glint sliding along it."""
+    pct = max(0.0, min(100.0, pct))
+    exact = pct * n / 100
+    full = int(exact)
+    s = ""
+    shine = (t * 0.6) % 1.6 - 0.3
+    for i in range(n):
+        f = i / max(1, n - 1)
+        col = RED if pct >= 80 else mix(CYAN, BODY, f)
+        if i < full:
+            glow = max(0.0, 1 - abs(f - shine) * 8) * (exact / n) if glint else 0.0
+            s += fg(mix(col, "#ffffff", glow * 0.55)) + "━"
+        elif i == full and exact - full >= 0.5:
+            s += fg(col) + "╸"
+        else:
+            s += fg(EDGE) + "━"
+    return s + RST
+
+
+def panel(u, t, width, working, alive):
+    """The right-hand side: title, bars, footer, as (text, visible width) lines."""
+    plan = getattr(u, "plan", "")
+    sub = f" · {plan} plan" if plan else ""
+    if working:
+        st = "working" + (f" ({working} sessions)" if working > 1 else "")
+        status = fg(mix(LIME, NAVY, 0.4 * (0.5 + 0.5 * math.sin(t * 4)))) + "● " + st
+    else:
+        st = "idle" if alive else "no session"
+        status = fg(EDGE) + "○ " + fg(DIM) + st
+    out = [(BOLD + fg(BODY) + "CLAUDE" + RST + fg(DIM) + sub + "   " + status + RST,
+            6 + len(sub) + 5 + len(st)), ("", 0)]
+    data = merged(u)
+    if data:
+        rs = rows(data)
+        lw = max(len(r[0]) for r in rs)
+        vw = max(len(r[2]) for r in rs)
+        ww = max(len(r[3]) for r in rs)
+        n = max(12, min(40, width - lw - vw - ww - 8))
+        for name, pct, val, reset in rs:
+            vcol = RED if pct >= 80 else FG
+            line = (fg(ICE) + name.ljust(lw) + RST + "  " + bar(pct, n, t, glint=working > 0) + "  "
+                    + fg(vcol) + BOLD + val.rjust(vw) + RST + "  " + fg(DIM) + "↻ "
+                    + reset.ljust(ww) + RST)
+            out += [(line, lw + n + vw + ww + 8), ("", 0)]
+    elif not u.error:
+        dots = "." * (int(t * 3) % 4)
+        out += [(fg(DIM) + "fetching usage" + dots.ljust(3) + RST, 17), ("", 0)]
+    if u.error == "rate limited":
+        left = max(0, int(u.retry_at - time.time()))
+        txt = (("live · " if feed() else "")
+               + f"API rate limited, retry in {left // 60}m{left % 60:02d}s")
+        foot, fw = fg(DIM if feed() else YELLOW) + txt + RST, len(txt)
+    elif u.error:
+        foot, fw = fg(YELLOW) + u.error + RST, len(u.error)
+    else:
+        ago = int(time.time() - u.fetched)
+        txt = ("updating…" if u.busy else "live from Claude Code" if not u.fetched and feed()
+               else "waiting for usage" if not u.fetched
+               else f"updated {ago // 60}m ago" if ago >= 60 else "updated just now")
+        foot, fw = fg(DIM) + txt + RST, len(txt)
+    keys = "  ·  r refresh · q quit"
+    if fw + len(keys) > width:                       # tight: the status matters more
+        keys = ""
+    out.append((foot + fg(EDGE) + keys + RST, fw + len(keys)))
+    return out
+
+
+def draw(u, t, cols, lines):
+    data = merged(u)
+    hot = data and any(r[1] >= 80 for r in rows(data) if r[0] == "session")
+    working, alive = activity()
+    sprite = render_sprite(t, "sleep" if not working else "hot" if hot else "")
+    gap = 2
+    if cols >= SPRITE_W + gap + 50:                 # Clawd on the left, the bars beside him
+        right = panel(u, t, cols - SPRITE_W - gap - 6, working, alive)
+        rw = max(w for _, w in right)
+        h = max(len(sprite), len(right))
+        so, ro = (h - len(sprite)) // 2, (h - len(right)) // 2
+        left_pad = " " * max(0, (cols - SPRITE_W - gap - rw) // 2)
+        out = []
+        for i in range(h):
+            s = sprite[i - so] if 0 <= i - so < len(sprite) else " " * SPRITE_W
+            r = right[i - ro][0] if 0 <= i - ro < len(right) else ""
+            out.append(left_pad + s + " " * gap + r)
+    else:                                           # narrow: stacked
+        out = [center(s, SPRITE_W, cols) for s in sprite]
+        out += [center(txt, w, cols) for txt, w in panel(u, t, cols - 4, working, alive)]
+    top = max(0, (lines - len(out)) // 2)
+    return [""] * top + out
+
+
+# ------------------------------------------------------------------------------ main
+def main():
+    if len(sys.argv) > 1:
+        sys.exit(__doc__)
+    u = Usage()
+    threading.Thread(target=u.loop, daemon=True).start()
+    fd = sys.stdin.fileno()
+    old = termios.tcgetattr(fd)
+    resized = [True]
+    signal.signal(signal.SIGWINCH, lambda *_: resized.__setitem__(0, True))
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+    sys.stdout.write("\033[?1049h\033[?25l")
+    t0 = time.monotonic()
+    try:
+        tty.setcbreak(fd)
+        while True:
+            cols, lines = shutil.get_terminal_size()
+            frame = draw(u, time.monotonic() - t0, cols, lines)[:lines]
+            head = "\033[2J" if resized[0] else ""
+            resized[0] = False
+            sys.stdout.write(head + "\033[H" + "\n".join(l + "\033[K" for l in frame) + "\033[J")
+            sys.stdout.flush()
+            idle = not activity()[0] and not u.busy
+            if select.select([fd], [], [], 0.5 if idle else 1 / FPS)[0]:
+                k = os.read(fd, 16)
+                if k in (b"q", b"Q", b"\x1b"):
+                    break
+                if k in (b"r", b"R"):
+                    u.wake.set()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old)
+        sys.stdout.write("\033[?25h\033[?1049l")
+        sys.stdout.flush()
+
+
+if __name__ == "__main__":
+    main()

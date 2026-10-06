@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# playerctl for the music player (bar clicks, nowplaying keys, media keys), made reliable
+# for spotify_player:
+#  * it wakes Spotify up: when the music stays paused for a while, Spotify ends the playback
+#    session and every command fails with "no playback found"; handing playback back to
+#    spotify_player first restores it (same track, same position, still paused).
+#  * play/pause really happen: spotify_player sends them through Spotify's Web API, and when
+#    Spotify answers "too many requests" the command is dropped. So play-pause becomes an
+#    explicit play or pause, checked against what actually plays (spotify_player has an
+#    audio stream only while it plays here), and re-sent if it didn't happen. A press while
+#    one is still being retried is absorbed, so presses can't undo each other.
+#   music-ctl play-pause | play | pause | next | previous | position <s> | volume <v>
+set -u
+PLAYERS=spotify_player,spotify,%any
+DEVICE=spotify-player                  # spotify_player's Connect device (app.toml device.name)
+STATE=$HOME/.local/bin/spotify-state   # the daemon's own view, from memory: costs no request
+LOCK=${XDG_RUNTIME_DIR:-/tmp}/music-ctl.lock
+
+refresh() { { "$STATE" --ready && sleep 0.4 && "$STATE" --fresh; } >/dev/null 2>&1 9>&- & }   # (not holding the lock)
+"$STATE" --ready || exec playerctl -p "$PLAYERS" "$@"     # not spotify_player: plain playerctl
+
+# wake up only on a clear "nothing is playing" answer, not when the question failed:
+# handing back a live session makes the track reload, a hiccup
+if pb=$("$STATE" --fresh) && [[ -z $pb ]]; then
+    timeout 10 spotify_player connect --name "$DEVICE" >/dev/null 2>&1
+    for _ in $(seq 25); do
+        pb=$("$STATE" --fresh) && jq -e '.item' >/dev/null 2>&1 <<<"$pb" && break
+        sleep 0.2
+    done
+    # the daemon re-reads the playback by itself a moment after a transfer; commands sent
+    # before that still find nothing
+    sleep 1.5
+fi
+
+case ${1:-} in
+    play-pause|play|pause)
+        exec 9>"$LOCK"
+        flock -n 9 || exit 0                              # already on it
+        # playing on this machine: the audio stream tells (instantly, and even while Spotify
+        # is rate limiting); on another device (phone…): what Spotify last said
+        here=0; [[ $(jq -r '.device.name // empty' <<<"${pb:-}" 2>/dev/null) == "$DEVICE" ]] && here=1
+        playing() {
+            if (( here )); then
+                pactl list sink-inputs 2>/dev/null | grep -q 'application.process.binary = "spotify_player"'
+            else
+                [[ $("$STATE" --fresh | jq -r '.is_playing' 2>/dev/null) == true ]]
+            fi
+        }
+        cmd=$1
+        [[ $cmd == play-pause ]] && { if playing; then cmd=pause; else cmd=play; fi; }
+        happened() { if playing; then [[ $cmd == play ]]; else [[ $cmd == pause ]]; fi; }
+        for try in 1 2 3; do
+            playerctl -p spotify_player "$cmd"
+            for _ in $(seq 10); do sleep 0.2; happened && break 2; done   # ≤ 2 s to happen
+            (( try < 3 )) && sleep $(( try * 2 ))        # dropped ("too many requests"): wait, again
+        done
+        refresh ;;
+    *)
+        playerctl -p "$PLAYERS" "$@"; rc=$?
+        refresh; exit $rc ;;
+esac
