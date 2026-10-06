@@ -3,6 +3,10 @@
 Arch Linux · **niri** (scrollable-tiling Wayland) or **driftwm** (infinite 2D canvas) · waybar · kitty · rofi · mako · swaylock
 The old **i3 / polybar / picom** session is kept as a fallback (pick it at the LightDM login screen).
 
+![The rice on driftwm: fastfetch, the now-playing player, Claude usage, the key cheat sheet, btop and yazi](screenshots/rice.png)
+
+*driftwm on the big screen: the showcase layout (`Mod+F8`) — fastfetch, now playing, Claude usage, the key cheat sheet, btop and yazi over the night-city wallpaper.*
+
 ## Install
 
 ```sh
